@@ -8,20 +8,19 @@ import { TiDocumentText } from "react-icons/ti";
 export default function Aside() {
   const currentRoute = usePathname();
   const routes = [
-    { route: "/home/catalog", icon: <GrCatalog />, name: "Catalog" },
-    { route: "/home/orders", icon: <LuPackage />, name: "Orders" },
-    { route: "/home/customers", icon: <CiUser />, name: "Customers" },
+    { route: "/home/catalog", icon: <GrCatalog />, name: "Projects" },
+    { route: "/home/orders", icon: <LuPackage />, name: "Active Projects" },
+    { route: "/home/customers", icon: <CiUser />, name: "Visualizer" },
     {
       route: "/home/subscription",
       icon: <CiCreditCard1 />,
-      name: "Subscriptions",
+      name: "Cleaner",
     },
     {
       route: "/home/appointments",
       icon: <CiCalendarDate />,
-      name: "Appointments",
+      name: "Chat with data",
     },
-    { route: "/home/Analyst", icon: <TiDocumentText />, name: "Analyst" },
   ];
 
   return (
