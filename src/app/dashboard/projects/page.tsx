@@ -89,9 +89,7 @@ export default function Component() {
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-8">
       <header className="mb-8">
-        <h1 className="text-4xl font-bold text-gray-100 mb-4">
-          Data Cleaning Dashboard
-        </h1>
+        <h1 className="text-4xl font-bold text-gray-100 mb-4">All Projects</h1>
         <div className="flex items-center space-x-4">
           <Input
             type="file"

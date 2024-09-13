@@ -3,7 +3,6 @@ import Aside from "@/components/Aside";
 import React from "react";
 import Header from "@/components/Header";
 import Providers from "@/app/providers";
-import { FaMagic } from "react-icons/fa";
 import Chatbot from "@/components/chatbot";
 
 export const metadata: Metadata = {
@@ -26,16 +25,17 @@ export default function RootLayout({
     <html>
       <body className="dark text-foreground bg-gray-900">
         <Providers>
-          <main className="flex flex-col h-screen">
-            {/* Header */}
-            <Header user={user} />
+          <main className="flex h-screen">
+            {/* Fixed Sidebar */}
+            <Aside />
 
-            <div className="flex flex-grow">
-              {/* Fixed Sidebar */}
-              <Aside />
+            {/* Main Content */}
+            <div className="flex-grow p-6 overflow-y-auto h-screen">
+              {/* Header remains at the top of the main content */}
+              {/* <Header user={user} /> */}
 
-              {/* Main Content */}
-              <div className="flex-grow p-6 overflow-y-auto">{children}</div>
+              {/* Children content area */}
+              <div className="flex-grow">{children}</div>
             </div>
 
             {/* Chatbot fixed button */}

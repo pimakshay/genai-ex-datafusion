@@ -26,6 +26,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Link from "next/link";
 
 type Project = {
   id: number;
@@ -91,10 +92,6 @@ export default function Component() {
     console.log(`Exporting data for project with id: ${id}`);
   };
 
-  const handleManageProjects = () => {
-    console.log("Opening project management interface");
-  };
-
   return (
     <div className="min-h-screen bg-gray-900 text-gray-100 p-8">
       <header className="mb-8">
@@ -102,10 +99,12 @@ export default function Component() {
           <h1 className="text-4xl font-bold text-gray-100">
             Active Projects Dashboard
           </h1>
-          <Button variant="outline" onClick={handleManageProjects}>
-            <Settings className="mr-2 h-4 w-4" />
-            Manage Projects
-          </Button>
+          <Link href="/projects">
+            <Button variant="outline">
+              <Settings className="mr-2 h-4 w-4" />
+              Manage Projects
+            </Button>
+          </Link>
         </div>
       </header>
 
@@ -115,7 +114,7 @@ export default function Component() {
           .map((project) => (
             <Card
               key={project.id}
-              className="w-full bg-gray-800 border-gray-700 border-green-500"
+              className="w-full bg-gray-800 border-gray-700"
             >
               <CardHeader>
                 <CardTitle className="flex justify-between items-center text-gray-100">
