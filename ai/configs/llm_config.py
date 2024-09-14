@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from langchain_google_genai import GoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAI
 load_dotenv(dotenv_path="../../.env")
 
 # load credentials
@@ -17,7 +17,7 @@ def get_csv_llm_config():
     verbose = True
 
     # Create an OpenAI object.
-    llm = GoogleGenerativeAI(model=model_name, 
+    llm = ChatGoogleGenerativeAI(model=model_name, 
                              google_api_key=api_key, 
                              temperature=temperature, 
                              verbose=verbose)

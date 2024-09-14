@@ -1,12 +1,9 @@
+fastapi[standard]
 python-dotenv
-torch
-numpy
-ipykernel
-notebook
 langchain
 langchain-experimental
-wikipedia
-youtube_search
 google-generativeai 
 langchain-google-genai
 tabulate
+pandas
+jsonschema
