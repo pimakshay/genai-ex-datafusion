@@ -189,21 +189,12 @@ async def root():
 async def get_file_metadata(file_uuid: str):
     try:
         # Query metadata from the metadata SQLite database
-        result = query_metadata(file_uuid, UPLOAD_DIR)
+        result: dict = query_metadata(file_uuid, UPLOAD_DIR)
 
         if not result:
             raise HTTPException(status_code=404, detail="File metadata not found")
 
-        project_uuid, user_uuid, file_name, file_size = result
-        return JSONResponse(
-            content={
-                "file_uuid": file_uuid,
-                "project_uuid": project_uuid,
-                "user_uuid": user_uuid,
-                "file_name": file_name,
-                "file_size": file_size,
-            }
-        )
+        return JSONResponse(content=result)
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")

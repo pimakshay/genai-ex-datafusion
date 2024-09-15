@@ -53,5 +53,27 @@ def query_metadata(file_uuid: str, upload_dir: str):
         )
 
         result = cursor.fetchone()
+        file_path = os.path.join(upload_dir, f"{file_uuid}.sqlite")
+        project_uuid, user_uuid, file_name, file_size = result
 
-        return result
+    with sqlite3.connect(file_path) as conn:
+        cursor = conn.cursor()
+        # fetch n_rows from the file
+        cursor.execute("SELECT COUNT(*) FROM data;")
+        row_count = cursor.fetchone()[0]
+
+        # fetch columns list
+        cursor.execute("PRAGMA table_info(data);")
+        columns = cursor.fetchall()
+
+    result = {
+        "file_uuid": file_uuid,
+        "project_uuid": project_uuid,
+        "user_uuid": user_uuid,
+        "file_name": file_name,
+        "file_size": file_size,
+        "row_count": row_count,
+        "columns": [column[1] for column in columns],
+    }
+
+    return result
