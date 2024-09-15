@@ -1,10 +1,12 @@
 import os
 import shutil
-import uuid
 import sqlite3
+import uuid
+
 import pandas as pd
-from fastapi import FastAPI, APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
+from metadata_store import query_metadata, store_metadata
 from pydantic import BaseModel
 
 # Create FastAPI router
@@ -12,22 +14,28 @@ from pydantic import BaseModel
 router = FastAPI()
 
 UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)  # Create the uploads directory if it doesn't exist
+os.makedirs(
+    UPLOAD_DIR, exist_ok=True
+)  # Create the uploads directory if it doesn't exist
+
 
 # Helper function to convert CSV to SQLite
 def convert_csv_to_sqlite(csv_file_path: str, sqlite_file_path: str):
     try:
         # Read the CSV into a pandas DataFrame
         df = pd.read_csv(csv_file_path)
-        
+
         # Write DataFrame to SQLite database
         with sqlite3.connect(sqlite_file_path) as conn:
             df.to_sql("data", conn, if_exists="replace", index=False)
     except Exception as e:
         raise RuntimeError(f"Error converting CSV to SQLite: {str(e)}")
 
+
 @router.post("/upload-file")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...), project_uuid: str = None, user_uuid: str = None
+):
     try:
         # Check if the file is uploaded
         if not file:
@@ -59,35 +67,45 @@ async def upload_file(file: UploadFile = File(...)):
                 convert_csv_to_sqlite(csv_file_path, new_file_path)
                 os.remove(csv_file_path)  # Remove the CSV file after conversion
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Error converting CSV to SQLite: {str(e)}")
+                raise HTTPException(
+                    status_code=500, detail=f"Error converting CSV to SQLite: {str(e)}"
+                )
 
         else:
-            raise HTTPException(status_code=400, detail="Invalid file type. Only .sqlite and .csv files are supported.")
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file type. Only .sqlite and .csv files are supported.",
+            )
 
+        # Store metadata in the metadata SQLite database
+        store_metadata(file_uuid, project_uuid, user_uuid, UPLOAD_DIR, new_file_path)
         # Return the UUID of the uploaded file
-        return JSONResponse(content={"uuid": file_uuid})
+        return JSONResponse(content={"file_uuid": file_uuid})
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+
 UPLOAD_DIR = "uploads"
+
 
 # Data model for the SQL query execution request
 class QueryRequest(BaseModel):
-    uuid: str
+    file_uuid: str
     query: str
+
 
 # Endpoint for executing SQL queries on uploaded databases
 @router.post("/execute-query")
 async def execute_query(request: QueryRequest):
-    uuid = request.uuid
+    file_uuid = request.file_uuid
     query = request.query
 
     # Check if both uuid and query are provided
-    if not uuid or not query:
+    if not file_uuid or not query:
         raise HTTPException(status_code=400, detail="Missing uuid or query")
 
-    db_path = os.path.join(UPLOAD_DIR, f"{uuid}.sqlite")
+    db_path = os.path.join(UPLOAD_DIR, f"{file_uuid}.sqlite")
 
     # Check if the database file exists
     if not os.path.exists(db_path):
@@ -110,6 +128,7 @@ async def execute_query(request: QueryRequest):
     finally:
         cursor.close()
         conn.close()
+
 
 # Endpoint for retrieving the schema of the database
 @router.get("/get-schema/{uuid}")
@@ -159,8 +178,32 @@ async def get_schema(uuid: str):
         cursor.close()
         conn.close()
 
+
 # Basic hello world endpoint
 @router.get("/")
 async def root():
     return {"message": "Hello World"}
 
+
+@router.get("/get-file-metadata/{file_uuid}")
+async def get_file_metadata(file_uuid: str):
+    try:
+        # Query metadata from the metadata SQLite database
+        result = query_metadata(file_uuid, UPLOAD_DIR)
+
+        if not result:
+            raise HTTPException(status_code=404, detail="File metadata not found")
+
+        project_uuid, user_uuid, file_name, file_size = result
+        return JSONResponse(
+            content={
+                "file_uuid": file_uuid,
+                "project_uuid": project_uuid,
+                "user_uuid": user_uuid,
+                "file_name": file_name,
+                "file_size": file_size,
+            }
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
