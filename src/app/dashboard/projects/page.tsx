@@ -11,13 +11,20 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-import { UploadCloud, Trash2, Edit, MoreVertical } from "lucide-react";
+import {
+  UploadCloud,
+  Trash2,
+  Edit,
+  MoreVertical,
+  ArrowUpRightFromCircle,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import Link from "next/link";
 
 type Project = {
   id: number;
@@ -174,15 +181,17 @@ export default function Component() {
               </div>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleEditProject(project.id)}
-                className="text-gray-300 hover:text-gray-100 border-gray-600 hover:bg-gray-700"
-              >
-                <Edit className="mr-2 h-4 w-4" />
-                Edit
-              </Button>
+              <Link href={`/project/${project.id}`}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleEditProject(project.id)}
+                  className="text-gray-300 hover:text-gray-100 border-gray-600 hover:bg-gray-700"
+                >
+                  <ArrowUpRightFromCircle className="mr-2 h-4 w-4" />
+                  Visit
+                </Button>
+              </Link>
               <Button
                 variant="outline"
                 size="sm"

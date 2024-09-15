@@ -1,55 +1,79 @@
 "use client";
-import styles from "./login.module.css";
 import { useState, useEffect } from "react";
-import { useSignInWithEmailAndPassword } from "react-firebase-hooks/auth";
+import {
+  useSignInWithEmailAndPassword,
+  useSendPasswordResetEmail,
+} from "react-firebase-hooks/auth";
 import { auth } from "@/app/firebase/config";
 import { useRouter } from "next/navigation";
-import { GoogleAuthProvider } from "firebase/auth";
-import { signInWithPopup } from "firebase/auth";
 import { UserAuth } from "../context/AuthContext";
 import Image from "next/image";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [signInWithEmailAndPassword] = useSignInWithEmailAndPassword(auth);
+  const [signInWithEmailAndPassword, userCredential, loading, error] =
+    useSignInWithEmailAndPassword(auth);
+  const [sendPasswordResetEmail, sendingReset, resetError] =
+    useSendPasswordResetEmail(auth);
   const router = useRouter();
-  const { user, googleSignIn, logOut } = UserAuth();
-  const [loading, setLoading] = useState(true);
+  const { googleSignIn } = UserAuth();
+  const [loginError, setLoginError] = useState("");
+  const [loadingVerification, setLoadingVerification] = useState(false);
 
   const handleSignIn = async () => {
     try {
-      await signInWithEmailAndPassword(email, password);
-      setEmail("");
-      setPassword("");
-      router.push("/home/catalog");
+      const result = await signInWithEmailAndPassword(email, password);
+
+      if (result?.user?.emailVerified) {
+        router.push("/home/catalog");
+      } else {
+        setLoginError("Email not verified. Please check your inbox.");
+        await auth.signOut(); // Force sign out if not verified
+      }
     } catch (e) {
       console.error(e);
+      setLoginError("Invalid email or password. Please try again.");
     }
   };
 
-  const handleSignIng = async () => {
+  const handleSignInWithGoogle = async () => {
     try {
       await googleSignIn();
     } catch (error) {
-      console.log(error);
+      setLoginError("Google sign-in failed. Please try again.");
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setLoginError("Please enter your email to reset your password.");
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(email);
+      setLoginError("Password reset email sent! Check your inbox.");
+    } catch (error) {
+      console.error(error);
+      setLoginError("Failed to send password reset email. Please try again.");
     }
   };
 
   useEffect(() => {
-    const checkAuthentication = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      setLoading(false);
-    };
-    checkAuthentication();
-
-    if (!loading && user) {
-      router.push("/home/catalog");
+    if (error) {
+      setLoginError("Login failed. Please check your credentials.");
     }
-  }, [loading, user, router]);
+  }, [error]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-900">
+    <div
+      className="min-h-screen flex items-center justify-center bg-gray-900"
+      style={{
+        backgroundImage: "url('/auth-bg.jpg')",
+        backgroundSize: "cover",
+      }}
+    >
       <div className="bg-gray-800 p-8 rounded-lg shadow-lg max-w-sm w-full">
         <div className="text-center mb-8">
           <Image
@@ -78,17 +102,21 @@ export default function Login() {
           onChange={(e) => setPassword(e.target.value)}
           className="w-full p-3 mb-4 bg-gray-700 rounded-lg border border-gray-600 focus:outline-none focus:border-indigo-400 transition text-white placeholder-gray-400"
         />
+        {loginError && (
+          <div className="mb-4 text-red-500 text-center">{loginError}</div>
+        )}
         <button
           onClick={handleSignIn}
           className="w-full p-3 bg-indigo-600 rounded-lg text-white hover:bg-indigo-500 transition shadow-md"
+          disabled={loading || loadingVerification}
         >
-          Sign In
+          {loading ? "Signing In..." : "Sign In"}
         </button>
 
         <div className="text-center my-4 text-gray-400">or</div>
 
         <button
-          onClick={handleSignIng}
+          onClick={handleSignInWithGoogle}
           className="flex items-center justify-center w-full p-3 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition shadow-md"
         >
           <svg
@@ -118,9 +146,13 @@ export default function Login() {
         </button>
 
         <div className="flex justify-between items-center mt-6">
-          <a href="#" className="text-sm text-indigo-400 hover:underline">
-            Forgot password?
-          </a>
+          <button
+            onClick={handleForgotPassword}
+            className="text-sm text-indigo-400 hover:underline"
+            disabled={sendingReset}
+          >
+            {sendingReset ? "Sending..." : "Forgot password?"}
+          </button>
           <a href="/signup" className="text-sm text-indigo-400 hover:underline">
             Sign Up
           </a>
