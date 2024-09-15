@@ -4,9 +4,9 @@ from backend_dateja.my_agent.DatabaseManager import DatabaseManager
 from backend_dateja.my_agent.LLMManager import LLMManager
 
 class SQLAgent:
-    def __init__(self):
-        self.db_manager = DatabaseManager()
-        self.llm_manager = LLMManager()
+    def __init__(self, API_KEY, ENDPOINT_URL):
+        self.db_manager = DatabaseManager(endpoint_url=ENDPOINT_URL)
+        self.llm_manager = LLMManager(api_key=API_KEY)
 
     def parse_question(self, state: dict) -> dict:
         """Parse user question and identify relevant tables and columns."""

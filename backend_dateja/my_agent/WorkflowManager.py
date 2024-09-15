@@ -5,9 +5,9 @@ from backend_dateja.my_agent.DataFormatter import DataFormatter
 from langgraph.graph import END
 
 class WorkflowManager:
-    def __init__(self):
-        self.sql_agent = SQLAgent()
-        self.data_formatter = DataFormatter()
+    def __init__(self, api_key: str, endpoint_url:str):
+        self.sql_agent = SQLAgent(API_KEY=api_key, ENDPOINT_URL=endpoint_url)
+        self.data_formatter = DataFormatter(API_KEY=api_key)
 
     def create_workflow(self) -> StateGraph:
         """Create and configure the workflow graph."""

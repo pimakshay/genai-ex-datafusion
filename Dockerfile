@@ -24,9 +24,13 @@ WORKDIR $HOME/datafusion
 # copy the data to data
 COPY --chown=user . $HOME/datafusion
 
-# set the working directory to /datafusion/ai
-WORKDIR $HOME/datafusion/ai
+# Make the start.sh script executable
+RUN chmod +x $HOME/datafusion/start.sh
 
-# start FASTAPI App on port 8000
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Expose the necessary ports
+EXPOSE 8000
+EXPOSE 8001
+
+# Use the start.sh script to run both FastAPI apps
+CMD ["$HOME/datafusion/start.sh"]
 

@@ -1,17 +1,10 @@
-import os
-from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 # from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAI
 
-load_dotenv(dotenv_path="../../.env")
-
-API_KEY = os.getenv("GOOGLE_API_KEY")
-
 class LLMManager:
-    def __init__(self):
+    def __init__(self, api_key):
         model_name = "gemini-1.5-flash"
-        api_key = API_KEY
         temperature = 0.0
         verbose = True
 

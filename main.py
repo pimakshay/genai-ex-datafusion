@@ -1,7 +1,9 @@
 from fastapi import FastAPI, HTTPException
 import os, sys
+from dotenv import load_dotenv
+# from backend_dateja.my_agent.main import graph
+from backend_dateja.my_agent.WorkflowManager import WorkflowManager
 
-from backend_dateja.my_agent.main import graph
 from pydantic import BaseModel
 
 # Data model for the SQL query execution request
@@ -9,10 +11,15 @@ class QueryRequest(BaseModel):
     uuid: str
     query: str
 
-# load credentials
-API_KEY = os.getenv("GOOGLE_API_KEY")
-
 app = FastAPI()
+
+# load credentials
+load_dotenv()
+API_KEY = os.getenv("GOOGLE_API_KEY")
+ENDPOINT_URL = os.getenv("DB_ENDPOINT_URL")
+
+# for deployment on langgraph cloud
+graph = WorkflowManager(api_key=API_KEY, endpoint_url=ENDPOINT_URL).returnGraph()
 
 @app.post("/call-model")
 async def call_model(request: QueryRequest):

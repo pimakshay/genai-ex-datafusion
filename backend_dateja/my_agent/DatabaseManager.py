@@ -1,12 +1,10 @@
 import requests
 import os
 from typing import List, Any
-from dotenv import load_dotenv
-load_dotenv(dotenv_path="../../.env")
 
 class DatabaseManager:
-    def __init__(self):
-        self.endpoint_url = os.getenv("DB_ENDPOINT_URL")
+    def __init__(self, endpoint_url):
+        self.endpoint_url = endpoint_url #os.getenv("DB_ENDPOINT_URL")
 
     def get_schema(self, uuid: str) -> str:
         """Retrieve the database schema."""
