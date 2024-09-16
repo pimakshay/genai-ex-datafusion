@@ -9,3 +9,5 @@ tabulate
 pandas
 jsonschema
 uvicorn
+fuzzywuzzy==0.18.0
+scikit-learn==1.5.2
