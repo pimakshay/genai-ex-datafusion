@@ -1,36 +1,32 @@
 # Use the official Python image from the Docker Hub
-FROM python:3.12.4
+FROM python:3.12
 
 # Set the working directory
 WORKDIR /datafusion
 
 # Copy the current directory contents into the container at /datafusion
-COPY --chown=user ./requirements.txt /datafusion/requirements.txt
+COPY ./requirements.txt /datafusion/requirements.txt
 
 # Install any needed packages specified in requirements.txt
 RUN pip install --no-cache-dir --upgrade -r /datafusion/requirements.txt
 
-# Set up a new user named "user"
-RUN useradd user
+# Update the package list
+RUN apt-get update && apt-get upgrade -y
 
-# Switch to the "user" user
-USER user
+# Set the environment variable
+ENV HOME=/datafusion 
 
-ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH
+WORKDIR $HOME
 
-WORKDIR $HOME/datafusion
-
-# copy the data to data
-COPY --chown=user . $HOME/datafusion
+# Copy the application code
+COPY . .
 
 # Make the start.sh script executable
-RUN chmod +x $HOME/datafusion/start.sh
+RUN python3 write_start_sh.py
+RUN chmod +x start.sh
 
 # Expose the necessary ports
-EXPOSE 8000
-EXPOSE 8001
+EXPOSE 8000 8001
 
-# Use the start.sh script to run both FastAPI apps
-CMD ["$HOME/datafusion/start.sh"]
-
+# Run the start.sh script
+CMD [ "bash", "./start.sh" ]
