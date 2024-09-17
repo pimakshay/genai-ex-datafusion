@@ -157,3 +157,15 @@ class AdvancedDataPipeline:
             logger.error(f"Error in handle_high_dimensionality: {str(e)}")
             logger.exception(e)
             return self.df, f"Error handling high dimensionality: {str(e)}", None
+
+    def handle_request(self, action):
+        if action == "handle_inconsistent_formats":
+            return self.handle_inconsistent_formats()
+        elif action == "handle_missing_values":
+            return self.handle_missing_values()
+        elif action == "handle_duplicates":
+            return self.handle_duplicates()
+        elif action == "handle_high_dimensionality":
+            return self.handle_high_dimensionality()
+        else:
+            return self.df, "Invalid action.", None

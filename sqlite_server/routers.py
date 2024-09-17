@@ -13,10 +13,17 @@ from pydantic import BaseModel
 # router = APIRouter()
 router = FastAPI()
 
+
 UPLOAD_DIR = "uploads"
 os.makedirs(
     UPLOAD_DIR, exist_ok=True
 )  # Create the uploads directory if it doesn't exist
+
+
+# Data model for the SQL query execution request
+class QueryRequest(BaseModel):
+    file_uuid: str
+    query: str
 
 
 # Helper function to convert CSV to SQLite
@@ -87,12 +94,6 @@ async def upload_file(
 
 
 UPLOAD_DIR = "uploads"
-
-
-# Data model for the SQL query execution request
-class QueryRequest(BaseModel):
-    file_uuid: str
-    query: str
 
 
 # Endpoint for executing SQL queries on uploaded databases
@@ -198,3 +199,29 @@ async def get_file_metadata(file_uuid: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.get("/get-file-dataframe/{file_uuid}")
+async def get_file_dataframe(file_uuid: str):
+    db_path = os.path.join(UPLOAD_DIR, f"{file_uuid}.sqlite")
+
+    # Check if the database file exists
+    if not os.path.exists(db_path):
+        raise HTTPException(status_code=404, detail="Database not found")
+
+    try:
+        # Connect to the SQLite database
+        conn = sqlite3.connect(db_path)
+
+        # Read the database into a pandas DataFrame
+        df = pd.read_sql_query("SELECT * FROM data;", conn)
+
+        # Convert the DataFrame to JSON
+        df_json = df.to_json(orient="records")
+
+        return JSONResponse(content=df_json)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        conn.close()

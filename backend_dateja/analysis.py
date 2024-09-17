@@ -203,3 +203,19 @@ class AdvancedVisualizer:
         )
 
         return fig
+
+    def handle_request(self, action):
+        if action == "basic_insights":
+            return self.generate_basic_insights()
+        elif action == "ai_insights":
+            return self.generate_ai_insights()
+        elif action == "insights":
+            return self.generate_insights()
+        elif action == "numeric_summaries":
+            return self.create_numeric_summaries(self.numeric_cols)
+        elif action == "correlation_heatmap":
+            return self.create_correlation_heatmap(self.numeric_cols)
+        elif action == "categorical_summaries":
+            return self.create_categorical_summaries(self.categorical_cols)
+        else:
+            return "Invalid action provided. Please choose from: basic_insights, ai_insights, insights, numeric_summaries, correlation_heatmap, categorical_summaries."
