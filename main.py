@@ -1,10 +1,13 @@
+import logging
 import os
 import sys
+from io import StringIO
 
 import httpx
 import pandas as pd
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from backend_dateja.analysis import AdvancedVisualizer
@@ -12,6 +15,8 @@ from backend_dateja.cleaning import AdvancedDataPipeline
 
 # from backend_dateja.my_agent.main import graph
 from backend_dateja.my_agent.WorkflowManager import WorkflowManager
+
+logger = logging.getLogger(__name__)
 
 
 # Data model for the SQL query execution request
@@ -70,11 +75,16 @@ async def handle_missing_values(request: CleaningRequest):
             print(df)
 
         pipeline = AdvancedDataPipeline(df)
-        response = pipeline.handle_request(request.action)[-1]
+        string_io = StringIO()
+        response = pipeline.handle_request(request.action)[0].to_csv(
+            string_io, index=False
+        )
+
     except Exception as e:
+        logger.exception(e)
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-    return response
+    return StreamingResponse(iter([string_io.getvalue()]), media_type="text/csv")
 
 
 @app.post("/data-analysis")
