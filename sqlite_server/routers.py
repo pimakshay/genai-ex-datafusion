@@ -132,13 +132,13 @@ async def execute_query(request: QueryRequest):
 
 
 # Endpoint for retrieving the schema of the database
-@router.get("/get-schema/{uuid}")
-async def get_schema(uuid: str):
+@router.get("/get-schema/{file_uuid}")
+async def get_schema(file_uuid: str):
     # Check if uuid is provided
     if not uuid:
         raise HTTPException(status_code=400, detail="Missing uuid")
 
-    db_path = os.path.join(UPLOAD_DIR, f"{uuid}.sqlite")
+    db_path = os.path.join(UPLOAD_DIR, f"{file_uuid}.sqlite")
 
     # Check if the database file exists
     if not os.path.exists(db_path):
