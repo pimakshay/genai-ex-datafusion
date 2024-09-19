@@ -5,6 +5,7 @@ import uuid
 
 import pandas as pd
 from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from metadata_store import query_metadata, store_metadata
 from pydantic import BaseModel
@@ -12,7 +13,16 @@ from pydantic import BaseModel
 # Create FastAPI router
 # router = APIRouter()
 router = FastAPI()
-
+origins = [
+    "*",
+]
+router.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 UPLOAD_DIR = "uploads"
 os.makedirs(
