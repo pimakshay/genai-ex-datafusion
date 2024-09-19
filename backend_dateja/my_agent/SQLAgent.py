@@ -11,7 +11,7 @@ class SQLAgent:
     def parse_question(self, state: dict) -> dict:
         """Parse user question and identify relevant tables and columns."""
         question = state['question']
-        schema = self.db_manager.get_schema(state['uuid'])
+        schema = self.db_manager.get_schema(state['file_uuid'])
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", '''You are a data analyst that can help summarize SQL tables and parse user questions about a database. 
@@ -56,7 +56,7 @@ The "noun_columns" field should contain only the columns that are relevant to th
             if noun_columns:
                 column_names = ', '.join(f"`{col}`" for col in noun_columns)
                 query = f"SELECT DISTINCT {column_names} FROM `{table_name}`"
-                results = self.db_manager.execute_query(state['uuid'], query)
+                results = self.db_manager.execute_query(state['file_uuid'], query)
                 for row in results:
                     unique_nouns.update(str(value) for value in row if value)
 
@@ -71,7 +71,7 @@ The "noun_columns" field should contain only the columns that are relevant to th
         if not parsed_question['is_relevant']:
             return {"sql_query": "NOT_RELEVANT", "is_relevant": False}
     
-        schema = self.db_manager.get_schema(state['uuid'])
+        schema = self.db_manager.get_schema(state['file_uuid'])
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", '''
@@ -131,7 +131,7 @@ Generate SQL query string'''),
         if sql_query == "NOT_RELEVANT":
             return {"sql_query": "NOT_RELEVANT", "sql_valid": False}
         
-        schema = self.db_manager.get_schema(state['uuid'])
+        schema = self.db_manager.get_schema(state['file_uuid'])
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", '''
@@ -199,13 +199,13 @@ For example:
     def execute_sql(self, state: dict) -> dict:
         """Execute SQL query and return results."""
         query = state['sql_query']
-        uuid = state['uuid']
+        file_uuid = state['file_uuid']
         
         if query == "NOT_RELEVANT":
             return {"results": "NOT_RELEVANT"}
 
         try:
-            results = self.db_manager.execute_query(uuid, query)
+            results = self.db_manager.execute_query(file_uuid, query)
             return {"results": results}
         except Exception as e:
             return {"error": str(e)}

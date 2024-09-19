@@ -4,7 +4,7 @@ import operator
 
 class InputState(TypedDict):
     question: str
-    uuid: str
+    file_uuid: str
     parsed_question: Dict[str, Any]
     unique_nouns: List[str]
     sql_query: str

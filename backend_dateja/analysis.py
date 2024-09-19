@@ -1,17 +1,20 @@
 import logging
 
-import google.generativeai as genai
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
+from langchain_core.output_parsers import JsonOutputParser
+
+from backend_dateja.my_agent.LLMManager import LLMManager
 
 logger = logging.getLogger(__name__)
 
 
 class AdvancedVisualizer:
 
-    def __init__(self, df):
+    def __init__(self, df, api_key):
         self.df = df
         self.original_df = df.copy()
         self.metadata = None
@@ -20,6 +23,7 @@ class AdvancedVisualizer:
             include=["object", "category"]
         ).columns
         self.datetime_cols = self.df.select_dtypes(include=["datetime64"]).columns
+        self.llm = LLMManager(api_key=api_key)
 
     def generate_basic_insights(self):
         if self.df is None:
@@ -92,10 +96,9 @@ class AdvancedVisualizer:
             return "No data available. Please upload data first."
 
         try:
-            model = genai.GenerativeModel("gemini-pro")
-            prompt = f"""Analyze the following dataset summary and provide key insights, patterns, and recommendations:
+            prompt = ChatPromptTemplate.from_messages([("human","""Analyze the following dataset summary and provide key insights, patterns, recommendations, and potential issues in JSON format.
 
-                Dataset Summary:
+                DATASET SUMMARY:
                 {basic_insights}
 
                 Please provide:
@@ -104,9 +107,23 @@ class AdvancedVisualizer:
                 3. Recommendations for further analysis or actions
                 4. Any potential issues or areas of concern in the data
                 5. Suggestions for feature engineering or model selection based on the data characteristics
-                """
-            response = model.generate_content(prompt)
-            return response.text
+
+                OUTPUT FORMAT:
+                JSON
+                {{
+                    "key_insights": List[str], # List of key insights,
+                    "potential_patterns": List[str], # List of potential patterns or trends,
+                    "recommendations": List[str], # List of recommendations for further analysis or actions,
+                    "issues": List[str], # List of potential issues or areas of concern,
+                    "feature_engineering": List[str], # List of suggestions for feature engineering,
+                    "model_selection": List[str], #List of suggestions for model selection
+                }}
+
+                Please analyze the data insights and return the response in provided JSON format.
+                """)])
+            output_parser = JsonOutputParser()
+            response = self.llm.invoke(prompt, response_format={"type": "json_object"}, basic_insights=basic_insights)
+            return output_parser.parse(response)
         except Exception as e:
             logging.error(f"Error generating AI insights: {str(e)}")
             return f"Error generating AI insights: {str(e)}"
@@ -114,7 +131,8 @@ class AdvancedVisualizer:
     def generate_insights(self):
         basic_insights = self.generate_basic_insights()
         ai_insights = self.generate_ai_insights(basic_insights)
-        return basic_insights + "\n\n" + ai_insights
+        insights = {"basic_insights": basic_insights, "ai_insights": ai_insights}
+        return insights
 
     def create_numeric_summaries(self, columns):
         fig = make_subplots(
