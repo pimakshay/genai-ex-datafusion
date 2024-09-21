@@ -1,3 +1,4 @@
+import uuid
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import JsonOutputParser
 from backend_dateja.my_agent.DatabaseManager import DatabaseManager
@@ -11,7 +12,9 @@ class SQLAgent:
     def parse_question(self, state: dict) -> dict:
         """Parse user question and identify relevant tables and columns."""
         question = state['question']
-        schema = self.db_manager.get_schema(state['file_uuid'])
+        # schema = self.db_manager.get_schema(state['file_uuid'])
+        schema = self.db_manager.get_schemas(uuids=state['file_uuid'])
+        sub_project_uuid = "test"
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", '''You are a data analyst that can help summarize SQL tables and parse user questions about a database. 
@@ -39,12 +42,12 @@ The "noun_columns" field should contain only the columns that are relevant to th
         
         response = self.llm_manager.invoke(prompt, schema=schema, question=question)
         parsed_response = output_parser.parse(response)
-        return {"parsed_question": parsed_response}
+        return {"parsed_question": parsed_response, "sub_project_uuid": sub_project_uuid}
 
     def get_unique_nouns(self, state: dict) -> dict:
         """Find unique nouns in relevant tables and columns."""
         parsed_question = state['parsed_question']
-        
+        print(state)
         if not parsed_question['is_relevant']:
             return {"unique_nouns": []}
 
@@ -56,7 +59,7 @@ The "noun_columns" field should contain only the columns that are relevant to th
             if noun_columns:
                 column_names = ', '.join(f"`{col}`" for col in noun_columns)
                 query = f"SELECT DISTINCT {column_names} FROM `{table_name}`"
-                results = self.db_manager.execute_query(state['file_uuid'], query)
+                results = self.db_manager.execute_query(state['sub_project_uuid'], query)
                 for row in results:
                     unique_nouns.update(str(value) for value in row if value)
 
@@ -71,7 +74,7 @@ The "noun_columns" field should contain only the columns that are relevant to th
         if not parsed_question['is_relevant']:
             return {"sql_query": "NOT_RELEVANT", "is_relevant": False}
     
-        schema = self.db_manager.get_schema(state['file_uuid'])
+        schema = self.db_manager.get_schema(state['sub_project_uuid'])
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", '''
@@ -131,7 +134,7 @@ Generate SQL query string'''),
         if sql_query == "NOT_RELEVANT":
             return {"sql_query": "NOT_RELEVANT", "sql_valid": False}
         
-        schema = self.db_manager.get_schema(state['file_uuid'])
+        schema = self.db_manager.get_schema(state['sub_project_uuid'])
 
         prompt = ChatPromptTemplate.from_messages([
             ("system", '''
@@ -199,8 +202,8 @@ For example:
     def execute_sql(self, state: dict) -> dict:
         """Execute SQL query and return results."""
         query = state['sql_query']
-        file_uuid = state['file_uuid']
-        
+        file_uuid = state['sub_project_uuid'] #state['file_uuid']
+        print("Sub_project_uuid: ",file_uuid)
         if query == "NOT_RELEVANT":
             return {"results": "NOT_RELEVANT"}
 

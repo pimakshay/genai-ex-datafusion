@@ -4,7 +4,8 @@ import sqlite3
 import uuid
 
 import pandas as pd
-from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile
+from typing import List
+from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile, Query
 from fastapi.responses import JSONResponse
 from metadata_store import query_metadata, store_metadata
 from pydantic import BaseModel
@@ -130,15 +131,14 @@ async def execute_query(request: QueryRequest):
         cursor.close()
         conn.close()
 
-
 # Endpoint for retrieving the schema of the database
-@router.get("/get-schema/{file_uuid}")
-async def get_schema(file_uuid: str):
+@router.get("/get-schema/{uuid}")
+async def get_schema(uuid: str):
     # Check if uuid is provided
     if not uuid:
         raise HTTPException(status_code=400, detail="Missing uuid")
 
-    db_path = os.path.join(UPLOAD_DIR, f"{file_uuid}.sqlite")
+    db_path = os.path.join(UPLOAD_DIR, f"{uuid}.sqlite")
 
     # Check if the database file exists
     if not os.path.exists(db_path):
@@ -178,6 +178,23 @@ async def get_schema(file_uuid: str):
     finally:
         cursor.close()
         conn.close()
+
+# Endpoint for retrieving the schema of the database
+@router.get("/get-schemas") #/{file_uuids}")
+async def get_schemas(file_uuids:  List[str] = Query(..., description="List of file UUIDs"), sub_project_uuid: str = "test"):
+    # Check if uuid is provided
+    if not file_uuids:
+        raise HTTPException(status_code=400, detail="Missing uuid")
+
+    try:
+        if len(file_uuids)>1:
+            await create_multi_file_dataframe(file_uuids=file_uuids, project_uuid=sub_project_uuid)
+            return await get_schema(uuid=sub_project_uuid)
+        else:
+            return await get_schema(uuid=file_uuids)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 
 
 # Basic hello world endpoint
@@ -225,3 +242,62 @@ async def get_file_dataframe(file_uuid: str):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
     finally:
         conn.close()
+
+
+@router.get("/create-multi-file-dataframe/{project_uuid}")
+async def create_multi_file_dataframe(file_uuids: list[str], project_uuid: str = None):
+    """
+    This function creates a dataframe for a project from its csv files.
+    Arguments:
+    :project_uuids: uuid of the selected project
+    :file_uuids: list of all uuids belonging to the given project
+    """
+    # Create a new merged database
+    merged_db_name = os.path.join(UPLOAD_DIR, f"{project_uuid}.sqlite")
+
+    if os.path.exists(merged_db_name):
+        return await get_schema(uuid=project_uuid)
+
+    merged_conn = sqlite3.connect(merged_db_name)
+
+    for i, file_uuid in enumerate(file_uuids):
+        source_file = os.path.join(UPLOAD_DIR, f"{file_uuid}.sqlite")
+        if os.path.exists(source_file) is False:
+            continue
+        # Connect to the source database
+        source_conn = sqlite3.connect(source_file)
+        source_cursor = source_conn.cursor()
+        
+        # Get all table names from the source database
+        source_cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = source_cursor.fetchall()
+        
+        for table in tables:
+            source_table_name = table[0]
+            # merge_table_name = f"{table[0]}{file_uuid}"
+            
+            # Read data from the source table
+            source_cursor.execute(f"SELECT * FROM {source_table_name}")
+            data = source_cursor.fetchall()
+            
+            # Get column names
+            source_cursor.execute(f"PRAGMA table_info({source_table_name})")
+            # columns = [column[1] for column in source_cursor.fetchall()]
+            columns_info = source_cursor.fetchall()
+            
+            # Create the table in the merged database
+            # columns_definition = ', '.join([f'"{col}" TEXT' for col in columns])
+            columns_definition = ', '.join([f'"{column[1]}" {column[2]}' for column in columns_info])
+            merged_conn.execute(f"CREATE TABLE IF NOT EXISTS {source_table_name+str(i)} ({columns_definition})")
+            
+            # Insert data into the merged database
+            placeholders = ', '.join(['?' for _ in columns_info])
+            merged_conn.executemany(f"INSERT INTO {source_table_name+str(i)} VALUES ({placeholders})", data)
+        
+        # Close the source connection
+        source_conn.close()
+
+    # Commit changes and close the merged connection
+    merged_conn.commit()
+    merged_conn.close()
+    return f"Project db saved to: {UPLOAD_DIR}"
