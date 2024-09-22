@@ -24,18 +24,19 @@ logger = logging.getLogger(__name__)
 
 # Data model for the SQL query execution request
 class QueryRequest(BaseModel):
+    project_uuid: str
     file_uuid: List[str]
-    query: str
+    question: str
 
 
 class CleaningRequest(BaseModel):
     file_uuid: str
-    action: str
+    action: str # options: handle_inconsistent_formats, handle_missing_values, handle_duplicates, handle_high_dimensionality
 
 
 class AnalysisRequest(BaseModel):
     file_uuid: str
-    action: str
+    action: str # options: basic_insights, insights, 
 
 
 app = FastAPI()
@@ -58,15 +59,15 @@ combined_agent = CombinedAgent(api_key=API_KEY, endpoint_url=ENDPOINT_URL)
 
 @app.post("/call-model")
 async def call_model(request: QueryRequest):
+    project_uuid = request.project_uuid
     file_uuid = request.file_uuid
-    query = request.query
-    print(file_uuid, query)
+    question = request.question
     # Check if both uuid and query are provided
-    if not file_uuid or not query:
+    if not file_uuid or not question or not project_uuid:
         raise HTTPException(status_code=400, detail="Missing uuid or query")
 
     try:
-        response = csv_agent_graph.invoke({"question": query, "file_uuid": file_uuid})
+        response = csv_agent_graph.invoke(request)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
@@ -88,11 +89,12 @@ async def call_receptionist_agent(query: str):
 
 @app.post("/combined-agent/call-model")
 async def call_combined_agent(request: QueryRequest):
+    project_uuid = request.project_uuid
     file_uuid = request.file_uuid
-    query = request.query
+    query = request.question
 
     # Check if both uuid and query are provided
-    if not file_uuid or not query:
+    if not file_uuid or not query or project_uuid:
         raise HTTPException(status_code=400, detail="Missing uuid or query")
     try:
         response = combined_agent.invoke(request)

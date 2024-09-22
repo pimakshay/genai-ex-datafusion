@@ -18,11 +18,12 @@ class DatabaseManager:
         except requests.RequestException as e:
             raise Exception(f"Error fetching schema: {str(e)}")
         
-    def get_schemas(self, uuids: List[str]) -> str:
+    def get_schemas(self, uuids: List[str], project_uuid: str) -> str:
         """Retrieve the database schema."""
         try:
             # Prepare the query parameters
             params = [('file_uuids', uuid) for uuid in uuids]
+            params.append(('project_uuid', project_uuid))
             query_string = urlencode(params)
 
             # Make the GET request

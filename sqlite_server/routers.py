@@ -11,7 +11,6 @@ from metadata_store import query_metadata, store_metadata
 from pydantic import BaseModel
 
 # Create FastAPI router
-# router = APIRouter()
 router = FastAPI()
 
 
@@ -161,8 +160,8 @@ async def get_schema(uuid: str):
             schema.append(f"Table: {table_name}")
             schema.append(f"CREATE statement: {create_statement}\n")
 
-            # Fetch example rows from the table (up to 3 rows)
-            cursor.execute(f"SELECT * FROM '{table_name}' LIMIT 3;")
+            # Fetch only 5 rows from the table as this is an example schema for model to generate sql query
+            cursor.execute(f"SELECT * FROM '{table_name}' LIMIT 5;")
             rows = cursor.fetchall()
             if rows:
                 schema.append("Example rows:")
@@ -181,14 +180,14 @@ async def get_schema(uuid: str):
 
 # Endpoint for retrieving the schema of the database
 @router.get("/get-schemas")
-async def get_schemas(file_uuids:  List[str] = Query(..., description="List of file UUIDs"), sub_project_uuid: str = "test"):
+async def get_schemas(file_uuids:  List[str] = Query(..., description="List of file UUIDs"), project_uuid: str = "test"):
     # Check if uuid is provided
     if not file_uuids:
         raise HTTPException(status_code=400, detail="Missing uuid")
 
     try:
-        await create_multi_file_dataframe(file_uuids=file_uuids, project_uuid=sub_project_uuid)
-        return await get_schema(uuid=sub_project_uuid)
+        await create_multi_file_dataframe(file_uuids=file_uuids, project_uuid=project_uuid)
+        return await get_schema(uuid=project_uuid)
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
@@ -253,8 +252,9 @@ async def create_multi_file_dataframe(file_uuids: list[str], project_uuid: str =
     # Create a new merged database
     merged_db_name = os.path.join(UPLOAD_DIR, f"{project_uuid}.sqlite")
 
+    # Check if the file already exists, and if so, delete it
     if os.path.exists(merged_db_name):
-        return "Dataframe already exists: call `get_schema(uuid=uuid)`"
+        os.remove(merged_db_name)
 
     merged_conn = sqlite3.connect(merged_db_name)
 
