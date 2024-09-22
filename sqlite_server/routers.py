@@ -180,18 +180,16 @@ async def get_schema(uuid: str):
         conn.close()
 
 # Endpoint for retrieving the schema of the database
-@router.get("/get-schemas") #/{file_uuids}")
+@router.get("/get-schemas")
 async def get_schemas(file_uuids:  List[str] = Query(..., description="List of file UUIDs"), sub_project_uuid: str = "test"):
     # Check if uuid is provided
     if not file_uuids:
         raise HTTPException(status_code=400, detail="Missing uuid")
 
     try:
-        if len(file_uuids)>1:
-            await create_multi_file_dataframe(file_uuids=file_uuids, project_uuid=sub_project_uuid)
-            return await get_schema(uuid=sub_project_uuid)
-        else:
-            return await get_schema(uuid=file_uuids)
+        await create_multi_file_dataframe(file_uuids=file_uuids, project_uuid=sub_project_uuid)
+        return await get_schema(uuid=sub_project_uuid)
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
@@ -256,7 +254,7 @@ async def create_multi_file_dataframe(file_uuids: list[str], project_uuid: str =
     merged_db_name = os.path.join(UPLOAD_DIR, f"{project_uuid}.sqlite")
 
     if os.path.exists(merged_db_name):
-        return await get_schema(uuid=project_uuid)
+        return "Dataframe already exists: call `get_schema(uuid=uuid)`"
 
     merged_conn = sqlite3.connect(merged_db_name)
 
