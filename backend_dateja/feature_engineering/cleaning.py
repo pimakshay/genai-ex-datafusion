@@ -9,7 +9,7 @@ from sklearn.feature_selection import RFE, mutual_info_regression
 logger = logging.getLogger(__name__)
 
 
-class AdvancedDataPipeline:
+class BasicDataPipeline:
     def __init__(self, df):
         self.df = df
         self.original_df = df.copy()

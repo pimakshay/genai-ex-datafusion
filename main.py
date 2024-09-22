@@ -12,7 +12,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from backend_dateja.analysis import AdvancedVisualizer
-from backend_dateja.cleaning import AdvancedDataPipeline
+from backend_dateja.feature_engineering.cleaning import BasicDataPipeline
+from backend_dateja.feature_engineering.extraction import GenerativeAIDataPipeline
 
 # from backend_dateja.my_agent.main import graph
 from backend_dateja.my_agent.WorkflowManager import WorkflowManager
@@ -32,6 +33,11 @@ class CleaningRequest(BaseModel):
 
 
 class AnalysisRequest(BaseModel):
+    file_uuid: str
+    action: str
+
+
+class FeatureExtractionRequest(BaseModel):
     file_uuid: str
     action: str
 
@@ -75,7 +81,7 @@ async def call_model(request: QueryRequest):
 
 
 @app.post("/data-cleaning")
-async def handle_missing_values(request: CleaningRequest):
+async def data_cleaning(request: CleaningRequest):
     try:
         async with httpx.AsyncClient() as client:
             # from other application in port 8000
@@ -85,7 +91,7 @@ async def handle_missing_values(request: CleaningRequest):
             df = pd.read_json(response.json())
             print(df)
 
-        pipeline = AdvancedDataPipeline(df)
+        pipeline = BasicDataPipeline(df)
         string_io = StringIO()
         response = pipeline.handle_request(request.action)[0].to_csv(
             string_io, index=False
@@ -96,6 +102,25 @@ async def handle_missing_values(request: CleaningRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     return StreamingResponse(iter([string_io.getvalue()]), media_type="text/csv")
+
+
+@app.post("/feature-extraction")
+async def feature_extraction(request: FeatureExtractionRequest):
+    try:
+        async with httpx.AsyncClient() as client:
+            # from other application in port 8000
+            response = await client.get(
+                f"http://localhost:8000/get-file-dataframe/{request.file_uuid}"
+            )
+            df = pd.read_json(response.json())
+            print(df)
+
+        pipeline = GenerativeAIDataPipeline(df, database_manager_endpoint=ENDPOINT_URL)
+        response = pipeline.handle_request(request.action)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+    return response
 
 
 @app.post("/data-analysis")
