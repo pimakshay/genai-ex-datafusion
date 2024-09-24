@@ -54,8 +54,20 @@ This updated documentation provides more detailed information about the request 
   }
 - Returns a text response
 
-## 3. Data cleaning
-- **POST** `/data-cleaning`
+## 3. Data cleaning pipeline
+- Runs all data cleaning steps and stores the cleaned data in `data_cleaned` table of the given file.
+- **POST** `/data-cleaning-pipeline`
+- Request Body: `CleaningRequest`
+    ```python 
+    {
+        "file_uuid": str, 
+        "action": str
+    }
+- Cleaned data is stored in the save file in `data_cleaned` table.
+
+## 4. Data cleaning actions
+- Runs a particular data cleaning step
+- **POST** `/data-cleaning-actions`
 - Request Body: `CleaningRequest`
     ```python 
     {
@@ -65,7 +77,7 @@ This updated documentation provides more detailed information about the request 
 - Available `action`: `handle_inconsistent_formats`, `handle_missing_values`, `handle_duplicates`,`handle_high_dimensionality`
 - Returns a cleaned schema
 
-## 4. Data analysis
+## 5. Data analysis
 - **POST** `/data-analysis`
 - Request Body: `AnalysisRequest`
     ```python 

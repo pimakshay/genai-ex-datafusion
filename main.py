@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 from io import StringIO
+import sqlite3
 
 import httpx
 import pandas as pd
@@ -18,7 +19,7 @@ from backend_dateja.cleaning import AdvancedDataPipeline
 from backend_dateja.my_agent.WorkflowManager import WorkflowManager
 from backend_dateja.receptionist.assistant import VirtualAssistant
 from backend_dateja.combined_agents import CombinedAgent
-
+from backend_dateja.speech2text.stream import stream_audio_to_text
 logger = logging.getLogger(__name__)
 
 
@@ -104,13 +105,13 @@ async def call_combined_agent(request: QueryRequest):
     return response
 
 
-@app.post("/data-cleaning")
-async def handle_missing_values(request: CleaningRequest):
+@app.post("/data-cleaning-actions")
+async def data_cleaning_actions(request: CleaningRequest):
     try:
         async with httpx.AsyncClient() as client:
             # from other application in port 8000
             response = await client.get(
-                f"http://localhost:8000/get-file-dataframe/{request.file_uuid}"
+                f"{ENDPOINT_URL}/get-file-dataframe/{request.file_uuid}?table_name=data"
             )
             df = pd.read_json(response.json())
             print(df)
@@ -126,6 +127,45 @@ async def handle_missing_values(request: CleaningRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     return StreamingResponse(iter([string_io.getvalue()]), media_type="text/csv")
+
+
+@app.post("/data-cleaning-pipeline")
+async def data_cleaning_pipeline(request: CleaningRequest):
+    try:
+        async with httpx.AsyncClient() as client:
+            # from other application in port 8000
+            response = await client.get(
+                f"http://localhost:8000/get-file-dataframe/{request.file_uuid}"
+            )
+
+            uploads_dir = await client.get(
+                f"http://localhost:8000/get-uploads-dir"
+            )
+            uploads_dir = uploads_dir.json()
+            df = pd.read_json(response.json())
+            print(df)
+
+        pipeline = AdvancedDataPipeline(df)
+        cleaned_df = pipeline.run_all()[0] #.to_csv(string_io, index=False)
+       
+        # Connect to SQLite and save the cleaned data
+        db_path = os.path.join(uploads_dir, f"{request.file_uuid}.sqlite")
+
+        conn = sqlite3.connect(db_path)
+        try:
+            cleaned_df.to_sql('data_cleaned', conn, if_exists='replace', index=False)
+            print("Data saved to 'data_cleaned' table successfully.")
+        except Exception as e:
+            logger.exception("Error saving data to SQLite.")
+            raise HTTPException(status_code=500, detail=f"Failed to save cleaned data: {str(e)}")
+        finally:
+            conn.close()
+
+    except Exception as e:
+        logger.exception("Error during the data cleaning pipeline.")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+    return {"message": "Data cleaned and saved to 'data_cleaned' table successfully."}
 
 
 @app.post("/data-analysis")
@@ -148,6 +188,48 @@ async def handle_data_analysis(request: AnalysisRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     return response
+
+## Audio streaming
+from fastapi import FastAPI, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
+)
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    logging.info("WebSocket connection accepted")
+    
+    async def receive_audio():
+        while True:
+            try:
+                audio_chunk = await websocket.receive_bytes()
+                if audio_chunk:
+                    logging.debug(f"Received audio chunk of size: {len(audio_chunk)} bytes")
+                    yield audio_chunk
+                else:
+                    logging.debug("Received empty audio chunk")
+            except Exception as e:
+                logging.error(f"Error receiving audio: {e}", exc_info=True)
+                break
+
+    try:
+        async for transcript in stream_audio_to_text(receive_audio()):
+            logging.info(f"Sending transcript: {transcript}")
+            await websocket.send_text(transcript)
+    except Exception as e:
+        logging.error(f"Error in websocket_endpoint: {e}", exc_info=True)
+    finally:
+        logging.info("Closing WebSocket connection")
+        await websocket.close()
+##
 
 
 if __name__ == "__main__":

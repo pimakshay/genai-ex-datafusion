@@ -19,17 +19,6 @@ This summary provides a quick overview of the available endpoints, their HTTP me
     "query": str # SQL query to execute
   }
 
-## 2. Call Receptionist Agent
-- **POST** `/receptionist-agent/call-model`
-- Request Body: `QueryRequest`
-  ```python
-  {
-    "project_uuid": str,
-    "file_uuid": list(str),
-    "question": str
-  }
-- Returns a text response
-
 ## 3. Get Schema
 
 - **GET** `/get-schema/{uuid}`

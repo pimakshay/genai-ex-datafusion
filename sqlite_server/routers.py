@@ -13,7 +13,6 @@ from pydantic import BaseModel
 # Create FastAPI router
 router = FastAPI()
 
-
 UPLOAD_DIR = "uploads"
 os.makedirs(
     UPLOAD_DIR, exist_ok=True
@@ -92,9 +91,14 @@ async def upload_file(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+# Endpoint for retrieving the schema of the database
+@router.get("/get-uploads-dir")
+async def get_uploads_dir():
+    
+    if os.path.exists(UPLOAD_DIR):
+        return os.path.abspath(UPLOAD_DIR)
 
-UPLOAD_DIR = "uploads"
-
+    return "Uploads directory doesn't exists."
 
 # Endpoint for executing SQL queries on uploaded databases
 @router.post("/execute-query")
@@ -157,17 +161,18 @@ async def get_schema(uuid: str):
         # Function to process each table and fetch its schema and example rows
         for table in tables:
             table_name, create_statement = table
-            schema.append(f"Table: {table_name}")
-            schema.append(f"CREATE statement: {create_statement}\n")
+            if "data_cleaned" in table_name:
+                schema.append(f"Table: {table_name}")
+                schema.append(f"CREATE statement: {create_statement}\n")
 
-            # Fetch only 5 rows from the table as this is an example schema for model to generate sql query
-            cursor.execute(f"SELECT * FROM '{table_name}' LIMIT 5;")
-            rows = cursor.fetchall()
-            if rows:
-                schema.append("Example rows:")
-                for row in rows:
-                    schema.append(str(row))
-            schema.append("")  # Blank line between tables
+                # Fetch only 5 rows from the table as this is an example schema for model to generate sql query
+                cursor.execute(f"SELECT * FROM '{table_name}' LIMIT 5;")
+                rows = cursor.fetchall()
+                if rows:
+                    schema.append("Example rows:")
+                    for row in rows:
+                        schema.append(str(row))
+                schema.append("")  # Blank line between tables
 
         # Return the schema as a single response
         return JSONResponse(content={"schema": "\n".join(schema)})
@@ -216,7 +221,7 @@ async def get_file_metadata(file_uuid: str):
 
 
 @router.get("/get-file-dataframe/{file_uuid}")
-async def get_file_dataframe(file_uuid: str):
+async def get_file_dataframe(file_uuid: str, table_name: str = 'data'):
     db_path = os.path.join(UPLOAD_DIR, f"{file_uuid}.sqlite")
 
     # Check if the database file exists
@@ -228,7 +233,7 @@ async def get_file_dataframe(file_uuid: str):
         conn = sqlite3.connect(db_path)
 
         # Read the database into a pandas DataFrame
-        df = pd.read_sql_query("SELECT * FROM data;", conn)
+        df = pd.read_sql_query(f"SELECT * FROM {table_name};", conn)
 
         # Convert the DataFrame to JSON
         df_json = df.to_json(orient="records")
@@ -272,26 +277,25 @@ async def create_multi_file_dataframe(file_uuids: list[str], project_uuid: str =
         
         for table in tables:
             source_table_name = table[0]
-            # merge_table_name = f"{table[0]}{file_uuid}"
+            if source_table_name=="data_cleaned":
+                # Read data from the source table
+                source_cursor.execute(f"SELECT * FROM {source_table_name}")
+                data = source_cursor.fetchall()
+                
+                # Get column names
+                source_cursor.execute(f"PRAGMA table_info({source_table_name})")
+                # columns = [column[1] for column in source_cursor.fetchall()]
+                columns_info = source_cursor.fetchall()
+                
+                # Create the table in the merged database
+                # columns_definition = ', '.join([f'"{col}" TEXT' for col in columns])
+                columns_definition = ', '.join([f'"{column[1]}" {column[2]}' for column in columns_info])
+                merged_conn.execute(f"CREATE TABLE IF NOT EXISTS {source_table_name+str(i)} ({columns_definition})")
+                
+                # Insert data into the merged database
+                placeholders = ', '.join(['?' for _ in columns_info])
+                merged_conn.executemany(f"INSERT INTO {source_table_name+str(i)} VALUES ({placeholders})", data)
             
-            # Read data from the source table
-            source_cursor.execute(f"SELECT * FROM {source_table_name}")
-            data = source_cursor.fetchall()
-            
-            # Get column names
-            source_cursor.execute(f"PRAGMA table_info({source_table_name})")
-            # columns = [column[1] for column in source_cursor.fetchall()]
-            columns_info = source_cursor.fetchall()
-            
-            # Create the table in the merged database
-            # columns_definition = ', '.join([f'"{col}" TEXT' for col in columns])
-            columns_definition = ', '.join([f'"{column[1]}" {column[2]}' for column in columns_info])
-            merged_conn.execute(f"CREATE TABLE IF NOT EXISTS {source_table_name+str(i)} ({columns_definition})")
-            
-            # Insert data into the merged database
-            placeholders = ', '.join(['?' for _ in columns_info])
-            merged_conn.executemany(f"INSERT INTO {source_table_name+str(i)} VALUES ({placeholders})", data)
-        
         # Close the source connection
         source_conn.close()
 
