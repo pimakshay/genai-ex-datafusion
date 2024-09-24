@@ -10,7 +10,11 @@ This summary provides a quick overview of the available endpoints, their HTTP me
     ```python 
     {"file_uuid": str}
 
-## 2. Execute Query
+## 2. Downdload cleaned data
+- **GET** `/download_cleaned_data/{file_uuid}`
+- Saves the `data` and `data_cleaned` in two different csv files with starting name `file_uuid`
+
+## 3. Execute Query
 - **POST** `/execute-query`
 - Request Body:
   ```python
@@ -19,12 +23,12 @@ This summary provides a quick overview of the available endpoints, their HTTP me
     "query": str # SQL query to execute
   }
 
-## 3. Get Schema
+## 4. Get Schema
 
 - **GET** `/get-schema/{uuid}`
 - Path Parameter: `uuid` of file
 
-## 4. Get Schemas
+## 5. Get Schemas
 - Used for retrieving schema of multiple files; calls `/create-multi-file-dataframe/{project_uuid}` internally.
 - **GET** `/get-schemas`
 - Query Parameters:
@@ -34,7 +38,7 @@ This summary provides a quick overview of the available endpoints, their HTTP me
         "project_uuid": str # merged sqlite file is stored with project_uuid
     }
 
-## 5. Get File Metadata
+## 6. Get File Metadata
 - **GET** `/get-file-metadata/{file_uuid}`
 - Path Parameter: `file_uuid`
 - Response body:
@@ -54,7 +58,7 @@ This summary provides a quick overview of the available endpoints, their HTTP me
     ]
     }
 
-## 6. Create Multi-File Dataframe
+## 7. Create Multi-File Dataframe
 - Creates a dataframe from multiple input file uuids
 - **GET** `/create-multi-file-dataframe/{project_uuid}`
 - Path Parameter: `project_uuid`

@@ -100,6 +100,37 @@ async def get_uploads_dir():
 
     return "Uploads directory doesn't exists."
 
+# Endpoint for downloading the cleaned data
+@router.get("/download_cleaned_data/{file_uuid}")
+async def download_tables_as_csv(file_uuid: str):
+    try:
+        upload_dir = await get_uploads_dir()
+        # Connect to the SQLite database
+        conn = sqlite3.connect(os.path.join(upload_dir, f"{uuid}.sqlite"))
+
+        # Define the table names
+        tables = ['data', 'data_cleaned']
+        
+        # Iterate through the table names and export each one to a CSV file
+        for table in tables:
+            # Query the table data into a pandas dataframe
+            df = pd.read_sql_query(f"SELECT * FROM {table}", conn)
+            
+            # Create the CSV filename using the file_uuid and table name
+            csv_file_name = f"{file_uuid}_{table}.csv"
+            
+            # Write the dataframe to a CSV file
+            df.to_csv(csv_file_name, index=False)
+            
+            print(f"Table '{table}' has been saved as '{csv_file_name}'.")
+
+    except Exception as e:
+        print(f"An error occurred: {str(e)}")
+
+    finally:
+        # Always close the database connection
+        conn.close()
+
 # Endpoint for executing SQL queries on uploaded databases
 @router.post("/execute-query")
 async def execute_query(request: QueryRequest):
