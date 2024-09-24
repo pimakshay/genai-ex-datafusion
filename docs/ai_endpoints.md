@@ -86,3 +86,8 @@ This updated documentation provides more detailed information about the request 
         "action": str
     }
 - Available `action`: `basic_insights`, `insights`
+
+## 6. Speech to text
+- **POST** `/speech2text/{file_path}`
+- `file_path`: path of the recorded audio file
+- Response: Transcribed text

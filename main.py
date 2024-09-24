@@ -19,7 +19,7 @@ from backend_dateja.cleaning import AdvancedDataPipeline
 from backend_dateja.my_agent.WorkflowManager import WorkflowManager
 from backend_dateja.receptionist.assistant import VirtualAssistant
 from backend_dateja.combined_agents import CombinedAgent
-from backend_dateja.speech2text.stream import stream_audio_to_text
+from backend_dateja.speech2text.audio_recognition import transcribe_streaming
 logger = logging.getLogger(__name__)
 
 
@@ -46,6 +46,7 @@ app = FastAPI()
 load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY")
 ENDPOINT_URL = os.getenv("DB_ENDPOINT_URL")
+SPEECH2TEXT_CREDS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
 # for deployment on langgraph cloud
 # define csv_agent_graph
@@ -189,48 +190,9 @@ async def handle_data_analysis(request: AnalysisRequest):
 
     return response
 
-## Audio streaming
-from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
-)
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    logging.info("WebSocket connection accepted")
-    
-    async def receive_audio():
-        while True:
-            try:
-                audio_chunk = await websocket.receive_bytes()
-                if audio_chunk:
-                    logging.debug(f"Received audio chunk of size: {len(audio_chunk)} bytes")
-                    yield audio_chunk
-                else:
-                    logging.debug("Received empty audio chunk")
-            except Exception as e:
-                logging.error(f"Error receiving audio: {e}", exc_info=True)
-                break
-
-    try:
-        async for transcript in stream_audio_to_text(receive_audio()):
-            logging.info(f"Sending transcript: {transcript}")
-            await websocket.send_text(transcript)
-    except Exception as e:
-        logging.error(f"Error in websocket_endpoint: {e}", exc_info=True)
-    finally:
-        logging.info("Closing WebSocket connection")
-        await websocket.close()
-##
-
+@app.post("/speech2text/{file_path}")
+async def recognize_voice(file_path: str):
+    return transcribe_streaming(stream_file=file_path, credential_path=SPEECH2TEXT_CREDS)[0]
 
 if __name__ == "__main__":
     import uvicorn
