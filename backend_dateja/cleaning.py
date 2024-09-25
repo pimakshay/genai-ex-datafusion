@@ -176,6 +176,6 @@ class AdvancedDataPipeline:
         self.handle_inconsistent_formats()
         self.handle_missing_values()
         self.handle_duplicates()
-        self.handle_high_dimensionality()
+        # self.handle_high_dimensionality()
         
         return self.df, "Data cleaning finished.", None

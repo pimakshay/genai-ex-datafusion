@@ -74,7 +74,7 @@ This updated documentation provides more detailed information about the request 
         "file_uuid": str, 
         "action": str
     }
-- Available `action`: `handle_inconsistent_formats`, `handle_missing_values`, `handle_duplicates`,`handle_high_dimensionality`
+- Available `action`: `handle_inconsistent_formats`, `handle_missing_values`, `handle_duplicates`
 - Returns a cleaned schema
 
 ## 5. Data analysis
@@ -87,7 +87,16 @@ This updated documentation provides more detailed information about the request 
     }
 - Available `action`: `basic_insights`, `insights`
 
-## 6. Speech to text
+## 6. Download data analysis as pdf
+- **POST** `/download-data-analysis`
+- Request Body: 
+    ```python 
+    {
+        "file_uuid": str
+    }
+- Downloads a pdf with necessary data insights
+
+## 7. Speech to text
 - **POST** `/speech2text/{file_path}`
 - `file_path`: path of the recorded audio file
 - Response: Transcribed text

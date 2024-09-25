@@ -1,5 +1,4 @@
 from typing import Dict, Any
-from langchain.agents import AgentExecutor, ZeroShotAgent
 from langchain.agents.agent_types import AgentType
 from langchain.chains import LLMChain
 from langchain.agents import Tool, initialize_agent

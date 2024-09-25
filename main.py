@@ -6,6 +6,9 @@ import sqlite3
 
 import httpx
 import pandas as pd
+from io import BytesIO
+import markdown2
+from weasyprint import HTML
 from typing import List
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -131,12 +134,12 @@ async def data_cleaning_actions(request: CleaningRequest):
 
 
 @app.post("/data-cleaning-pipeline")
-async def data_cleaning_pipeline(request: CleaningRequest):
+async def data_cleaning_pipeline(file_uuid: str):
     try:
         async with httpx.AsyncClient() as client:
             # from other application in port 8000
             response = await client.get(
-                f"http://localhost:8000/get-file-dataframe/{request.file_uuid}"
+                f"http://localhost:8000/get-file-dataframe/{file_uuid}"
             )
 
             uploads_dir = await client.get(
@@ -150,12 +153,13 @@ async def data_cleaning_pipeline(request: CleaningRequest):
         cleaned_df = pipeline.run_all()[0] #.to_csv(string_io, index=False)
        
         # Connect to SQLite and save the cleaned data
-        db_path = os.path.join(uploads_dir, f"{request.file_uuid}.sqlite")
+        db_path = os.path.join(uploads_dir, f"{file_uuid}.sqlite")
 
         conn = sqlite3.connect(db_path)
         try:
             cleaned_df.to_sql('data_cleaned', conn, if_exists='replace', index=False)
-            print("Data saved to 'data_cleaned' table successfully.")
+            # print("Data saved to 'data_cleaned' table successfully.")
+            return {"message": "Finished data cleaning."}
         except Exception as e:
             logger.exception("Error saving data to SQLite.")
             raise HTTPException(status_code=500, detail=f"Failed to save cleaned data: {str(e)}")
@@ -166,7 +170,7 @@ async def data_cleaning_pipeline(request: CleaningRequest):
         logger.exception("Error during the data cleaning pipeline.")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-    return {"message": "Data cleaned and saved to 'data_cleaned' table successfully."}
+    # return {"message": "Finished data cleaning."}
 
 
 @app.post("/data-analysis")
@@ -189,6 +193,58 @@ async def handle_data_analysis(request: AnalysisRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     return response
+
+
+@app.post("/download-data-analysis")
+async def download_data_analysis(file_uuid):
+    try:
+        async with httpx.AsyncClient() as client:
+            # from other application in port 8000
+            response = await client.get(
+                f"http://localhost:8000/get-file-dataframe/{file_uuid}"
+            )
+            df = pd.read_json(response.json())
+            print(df)
+
+        visualizer = AdvancedVisualizer(df, api_key=API_KEY)
+        markdown_response = visualizer.handle_request("generate_report")
+        # Convert markdown to HTML
+        html_content = markdown2.markdown(markdown_response)
+        
+        # Add some basic styling
+        styled_html = f"""
+        <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }}
+                    h1, h2, h3 {{ color: #333; }}
+                    table {{ border-collapse: collapse; width: 100%; }}
+                    th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                    th {{ background-color: #f2f2f2; }}
+                </style>
+            </head>
+            <body>
+                {html_content}
+            </body>
+        </html>
+        """
+        
+        # Convert HTML to PDF
+        pdf_buffer = BytesIO()
+        HTML(string=styled_html).write_pdf(pdf_buffer)
+        pdf_buffer.seek(0)
+        
+        # Return PDF as a downloadable file
+        return StreamingResponse(
+            pdf_buffer, 
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename={file_uuid}_data_insights.pdf"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
 
 @app.post("/speech2text/{file_path}")
 async def recognize_voice(file_path: str):

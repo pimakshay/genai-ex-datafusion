@@ -1,7 +1,7 @@
 import json
 
-from langchain.tools import WikipediaQueryRun
-from langchain.utilities import WikipediaAPIWrapper
+from langchain_community.tools import WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper
 from langchain_community.tools import YouTubeSearchTool
 from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
