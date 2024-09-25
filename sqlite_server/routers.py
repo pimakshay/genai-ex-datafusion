@@ -9,6 +9,9 @@ from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile, Query
 from fastapi.responses import JSONResponse
 from metadata_store import query_metadata, store_metadata
 from pydantic import BaseModel
+from io import StringIO
+from fastapi.responses import StreamingResponse
+
 
 # Create FastAPI router
 router = FastAPI()
@@ -100,36 +103,43 @@ async def get_uploads_dir():
 
     return "Uploads directory doesn't exists."
 
-# Endpoint for downloading the cleaned data
-@router.get("/download_cleaned_data/{file_uuid}")
-async def download_tables_as_csv(file_uuid: str):
+async def get_table_as_csv(file_uuid: str, table_name: str):
+    upload_dir = await get_uploads_dir()
+    # Connect to the SQLite database
+    db_file_path = os.path.join(upload_dir, f"{file_uuid}.sqlite")
+    conn = sqlite3.connect(db_file_path)
+    
     try:
-        upload_dir = await get_uploads_dir()
-        # Connect to the SQLite database
-        conn = sqlite3.connect(os.path.join(upload_dir, f"{uuid}.sqlite"))
-
-        # Define the table names
-        tables = ['data', 'data_cleaned']
+        # Query the table data into a pandas dataframe
+        df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
         
-        # Iterate through the table names and export each one to a CSV file
-        for table in tables:
-            # Query the table data into a pandas dataframe
-            df = pd.read_sql_query(f"SELECT * FROM {table}", conn)
-            
-            # Create the CSV filename using the file_uuid and table name
-            csv_file_name = f"{file_uuid}_{table}.csv"
-            
-            # Write the dataframe to a CSV file
-            df.to_csv(csv_file_name, index=False)
-            
-            print(f"Table '{table}' has been saved as '{csv_file_name}'.")
-
+        # Use StringIO to hold CSV data in memory
+        csv_buffer = StringIO()
+        df.to_csv(csv_buffer, index=False)
+        
+        # Reset the pointer of the buffer to the beginning
+        csv_buffer.seek(0)
+        
+        return csv_buffer
     except Exception as e:
-        print(f"An error occurred: {str(e)}")
-
+        raise HTTPException(status_code=500, detail=f"Error exporting table {table_name}: {str(e)}")
     finally:
         # Always close the database connection
         conn.close()
+
+@router.get("/download_cleaned_data/{file_uuid}")
+async def download_tables_as_csv(file_uuid: str):
+    
+    try:
+        data_cleaned_csv = await get_table_as_csv(file_uuid, 'data_cleaned')
+        
+        # Stream the cleaned data CSV back as a response
+        return StreamingResponse(data_cleaned_csv, media_type="text/csv", headers={
+            "Content-Disposition": f"attachment; filename={file_uuid}_data_cleaned.csv"
+        })
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download CSV: {str(e)}")
 
 # Endpoint for executing SQL queries on uploaded databases
 @router.post("/execute-query")
