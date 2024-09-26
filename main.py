@@ -22,7 +22,6 @@ from backend_dateja.cleaning import AdvancedDataPipeline
 from backend_dateja.my_agent.WorkflowManager import WorkflowManager
 from backend_dateja.receptionist.assistant import VirtualAssistant
 from backend_dateja.combined_agents import CombinedAgent
-from backend_dateja.speech2text.audio_recognition import transcribe_streaming
 logger = logging.getLogger(__name__)
 
 
@@ -78,37 +77,6 @@ async def call_model(request: QueryRequest):
 
     return response
 
-@app.post("/receptionist-agent/call-model")
-async def call_receptionist_agent(query: str):
-    # Check if both uuid and query are provided
-    if not query:
-        raise HTTPException(status_code=400, detail="Missing query")
-
-    try:
-        response = receptionist_agent.invoke(query)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-    return response
-
-
-@app.post("/combined-agent/call-model")
-async def call_combined_agent(request: QueryRequest):
-    project_uuid = request.project_uuid
-    file_uuid = request.file_uuid
-    query = request.question
-
-    # Check if both uuid and query are provided
-    if not file_uuid or not query or project_uuid:
-        raise HTTPException(status_code=400, detail="Missing uuid or query")
-    try:
-        response = combined_agent.invoke(request)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-    return response
-
-
 @app.post("/data-cleaning-actions")
 async def data_cleaning_actions(request: CleaningRequest):
     try:
@@ -139,11 +107,11 @@ async def data_cleaning_pipeline(file_uuid: str):
         async with httpx.AsyncClient() as client:
             # from other application in port 8000
             response = await client.get(
-                f"http://localhost:8000/get-file-dataframe/{file_uuid}"
+                f"{ENDPOINT_URL}/get-file-dataframe/{file_uuid}"
             )
 
             uploads_dir = await client.get(
-                f"http://localhost:8000/get-uploads-dir"
+                f"{ENDPOINT_URL}/get-uploads-dir"
             )
             uploads_dir = uploads_dir.json()
             df = pd.read_json(response.json())
@@ -179,7 +147,7 @@ async def handle_data_analysis(request: AnalysisRequest):
         async with httpx.AsyncClient() as client:
             # from other application in port 8000
             response = await client.get(
-                f"http://localhost:8000/get-file-dataframe/{request.file_uuid}"
+                f"{ENDPOINT_URL}/get-file-dataframe/{request.file_uuid}"
             )
             df = pd.read_json(response.json())
             print(df)
@@ -201,7 +169,7 @@ async def download_data_analysis(file_uuid):
         async with httpx.AsyncClient() as client:
             # from other application in port 8000
             response = await client.get(
-                f"http://localhost:8000/get-file-dataframe/{file_uuid}"
+                f"{ENDPOINT_URL}/get-file-dataframe/{file_uuid}"
             )
             df = pd.read_json(response.json())
             print(df)
@@ -245,10 +213,6 @@ async def download_data_analysis(file_uuid):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-
-@app.post("/speech2text/{file_path}")
-async def recognize_voice(file_path: str):
-    return transcribe_streaming(stream_file=file_path, credential_path=SPEECH2TEXT_CREDS)[0]
 
 if __name__ == "__main__":
     import uvicorn
