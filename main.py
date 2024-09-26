@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+
 
 from backend_dateja.analysis import AdvancedVisualizer
 from backend_dateja.cleaning import AdvancedDataPipeline
@@ -22,6 +24,7 @@ from backend_dateja.cleaning import AdvancedDataPipeline
 from backend_dateja.my_agent.WorkflowManager import WorkflowManager
 from backend_dateja.receptionist.assistant import VirtualAssistant
 from backend_dateja.combined_agents import CombinedAgent
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,15 +37,23 @@ class QueryRequest(BaseModel):
 
 class CleaningRequest(BaseModel):
     file_uuid: str
-    action: str # options: handle_inconsistent_formats, handle_missing_values, handle_duplicates, handle_high_dimensionality
+    action: str  # options: handle_inconsistent_formats, handle_missing_values, handle_duplicates, handle_high_dimensionality
 
 
 class AnalysisRequest(BaseModel):
     file_uuid: str
-    action: str # options: basic_insights, insights, 
+    action: str  # options: basic_insights, insights,
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # load credentials
 load_dotenv()
@@ -52,7 +63,9 @@ SPEECH2TEXT_CREDS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
 # for deployment on langgraph cloud
 # define csv_agent_graph
-csv_agent_graph = WorkflowManager(api_key=API_KEY, endpoint_url=ENDPOINT_URL).returnGraph()
+csv_agent_graph = WorkflowManager(
+    api_key=API_KEY, endpoint_url=ENDPOINT_URL
+).returnGraph()
 
 # define receptionist_agent
 assistant = VirtualAssistant(api_key=API_KEY)
@@ -60,6 +73,7 @@ receptionist_agent = assistant.get_agent()
 
 # combined agent
 combined_agent = CombinedAgent(api_key=API_KEY, endpoint_url=ENDPOINT_URL)
+
 
 @app.post("/call-model")
 async def call_model(request: QueryRequest):
@@ -76,6 +90,7 @@ async def call_model(request: QueryRequest):
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     return response
+
 
 @app.post("/data-cleaning-actions")
 async def data_cleaning_actions(request: CleaningRequest):
@@ -110,27 +125,27 @@ async def data_cleaning_pipeline(file_uuid: str):
                 f"{ENDPOINT_URL}/get-file-dataframe/{file_uuid}"
             )
 
-            uploads_dir = await client.get(
-                f"{ENDPOINT_URL}/get-uploads-dir"
-            )
+            uploads_dir = await client.get(f"{ENDPOINT_URL}/get-uploads-dir")
             uploads_dir = uploads_dir.json()
             df = pd.read_json(response.json())
             print(df)
 
         pipeline = AdvancedDataPipeline(df)
-        cleaned_df = pipeline.run_all()[0] #.to_csv(string_io, index=False)
-       
+        cleaned_df = pipeline.run_all()[0]  # .to_csv(string_io, index=False)
+
         # Connect to SQLite and save the cleaned data
         db_path = os.path.join(uploads_dir, f"{file_uuid}.sqlite")
 
         conn = sqlite3.connect(db_path)
         try:
-            cleaned_df.to_sql('data_cleaned', conn, if_exists='replace', index=False)
+            cleaned_df.to_sql("data_cleaned", conn, if_exists="replace", index=False)
             # print("Data saved to 'data_cleaned' table successfully.")
             return {"message": "Finished data cleaning."}
         except Exception as e:
             logger.exception("Error saving data to SQLite.")
-            raise HTTPException(status_code=500, detail=f"Failed to save cleaned data: {str(e)}")
+            raise HTTPException(
+                status_code=500, detail=f"Failed to save cleaned data: {str(e)}"
+            )
         finally:
             conn.close()
 
@@ -178,7 +193,7 @@ async def download_data_analysis(file_uuid):
         markdown_response = visualizer.handle_request("generate_report")
         # Convert markdown to HTML
         html_content = markdown2.markdown(markdown_response)
-        
+
         # Add some basic styling
         styled_html = f"""
         <html>
@@ -196,19 +211,19 @@ async def download_data_analysis(file_uuid):
             </body>
         </html>
         """
-        
+
         # Convert HTML to PDF
         pdf_buffer = BytesIO()
         HTML(string=styled_html).write_pdf(pdf_buffer)
         pdf_buffer.seek(0)
-        
+
         # Return PDF as a downloadable file
         return StreamingResponse(
-            pdf_buffer, 
+            pdf_buffer,
             media_type="application/pdf",
             headers={
                 "Content-Disposition": f"attachment; filename={file_uuid}_data_insights.pdf"
-            }
+            },
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
