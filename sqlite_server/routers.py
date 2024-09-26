@@ -2,6 +2,9 @@ import os
 import shutil
 import sqlite3
 import uuid
+from io import BytesIO
+import markdown2
+from weasyprint import HTML
 
 import pandas as pd
 from typing import List
@@ -17,6 +20,8 @@ from fastapi.responses import StreamingResponse
 router = FastAPI()
 
 UPLOAD_DIR = "uploads"
+CLEANED_TABLE_NAME = "data_cleaned"
+ANALYSED_TABLE_NAME = "data_analysed"
 os.makedirs(
     UPLOAD_DIR, exist_ok=True
 )  # Create the uploads directory if it doesn't exist
@@ -29,22 +34,38 @@ class QueryRequest(BaseModel):
 
 
 # Helper function to convert CSV to SQLite
-def convert_csv_to_sqlite(csv_file_path: str, sqlite_file_path: str):
+def convert_dataframe_to_sqlite(df, sqlite_file_path: str):
     try:
-        # Read the CSV into a pandas DataFrame
-        df = pd.read_csv(csv_file_path)
-
         # Write DataFrame to SQLite database
         with sqlite3.connect(sqlite_file_path) as conn:
             df.to_sql("data", conn, if_exists="replace", index=False)
     except Exception as e:
         raise RuntimeError(f"Error converting CSV to SQLite: {str(e)}")
 
+def table_exists(conn, table_name):
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name=?;
+    """, (table_name,))
+    if cursor.fetchone() is None:
+        raise HTTPException(status_code=404, detail=f"Table '{table_name}' does not exist in the database")
+    
+    return True
 
-@router.post("/upload-file")
+@router.post("/upload-file", description="Allowed file formats: csv, xls, xlsx, sqlite ")
 async def upload_file(
     file: UploadFile = File(...), project_uuid: str = None, user_uuid: str = None
 ):
+    # Check if both uuid and query are provided
+    if not user_uuid or not project_uuid or not file:
+        raise HTTPException(status_code=400, detail="Missing uuids or file")
+    allowed_formats = ["csv", "xls", "xlsx", "sqlite"]
+    file_extension = os.path.splitext(file.filename)[1][1:].lower()
+
+    if file_extension not in allowed_formats:
+        raise HTTPException(status_code=400, detail=f"Invalid file format. Allowed formats are: {', '.join(allowed_formats)}")
+    
     try:
         # Check if the file is uploaded
         if not file:
@@ -73,13 +94,31 @@ async def upload_file(
 
             # Convert CSV to SQLite
             try:
-                convert_csv_to_sqlite(csv_file_path, new_file_path)
+                df = pd.read_csv(csv_file_path)
+                convert_dataframe_to_sqlite(df, new_file_path)
                 os.remove(csv_file_path)  # Remove the CSV file after conversion
             except Exception as e:
                 raise HTTPException(
                     status_code=500, detail=f"Error converting CSV to SQLite: {str(e)}"
                 )
+        # Handle .xls and .xlsx files
+        elif file_extension in [".xls", ".xlsx"]:
+            excel_file_path = os.path.join(UPLOAD_DIR, file.filename)
+            new_file_path = os.path.join(UPLOAD_DIR, f"{file_uuid}.sqlite")
 
+            # Save the Excel file temporarily
+            with open(excel_file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+
+            # Convert Excel to SQLite
+            try:
+                df = pd.read_excel(excel_file_path)
+                convert_dataframe_to_sqlite(df, new_file_path)
+                os.remove(excel_file_path)  # Remove the Excel file after conversion
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500, detail=f"Error converting Excel to SQLite: {str(e)}"
+                )
         else:
             raise HTTPException(
                 status_code=400,
@@ -111,6 +150,7 @@ async def get_table_as_csv(file_uuid: str, table_name: str):
     
     try:
         # Query the table data into a pandas dataframe
+        table_exists(conn=conn, table_name=table_name)
         df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
         
         # Use StringIO to hold CSV data in memory
@@ -131,16 +171,68 @@ async def get_table_as_csv(file_uuid: str, table_name: str):
 async def download_tables_as_csv(file_uuid: str):
     
     try:
-        data_cleaned_csv = await get_table_as_csv(file_uuid, 'data_cleaned')
+        data_cleaned_csv = await get_table_as_csv(file_uuid, CLEANED_TABLE_NAME)
         
         # Stream the cleaned data CSV back as a response
         return StreamingResponse(data_cleaned_csv, media_type="text/csv", headers={
-            "Content-Disposition": f"attachment; filename={file_uuid}_data_cleaned.csv"
+            "Content-Disposition": f"attachment; filename={file_uuid}_{CLEANED_TABLE_NAME}.csv"
         })
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to download CSV: {str(e)}")
 
+
+@router.get("/download_data_analysis/{file_uuid}")
+async def download_data_insights_as_pdf(file_uuid: str):
+    
+    try:
+        upload_dir = await get_uploads_dir()
+        # Connect to the SQLite database
+        db_file_path = os.path.join(upload_dir, f"{file_uuid}.sqlite")
+        conn = sqlite3.connect(db_file_path)
+
+        # Query the table data into a pandas dataframe
+        table_exists(conn=conn, table_name=ANALYSED_TABLE_NAME)
+        df = pd.read_sql_query(f"SELECT * FROM {ANALYSED_TABLE_NAME}", conn)
+        print(df)
+    
+        # Convert markdown to HTML
+        html_content = markdown2.markdown(df["markdown_content"].iloc[0])
+        
+        # Add some basic styling
+        styled_html = f"""
+        <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }}
+                    h1, h2, h3 {{ color: #333; }}
+                    table {{ border-collapse: collapse; width: 100%; }}
+                    th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+                    th {{ background-color: #f2f2f2; }}
+                </style>
+            </head>
+            <body>
+                {html_content}
+            </body>
+        </html>
+        """
+        
+        # Convert HTML to PDF
+        pdf_buffer = BytesIO()
+        HTML(string=styled_html).write_pdf(pdf_buffer)
+        pdf_buffer.seek(0)
+        
+        # Return PDF as a downloadable file
+        return StreamingResponse(
+            pdf_buffer, 
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename={file_uuid}_{ANALYSED_TABLE_NAME}.pdf"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    
 # Endpoint for executing SQL queries on uploaded databases
 @router.post("/execute-query")
 async def execute_query(request: QueryRequest):
@@ -202,7 +294,7 @@ async def get_schema(uuid: str):
         # Function to process each table and fetch its schema and example rows
         for table in tables:
             table_name, create_statement = table
-            if "data_cleaned" in table_name:
+            if CLEANED_TABLE_NAME in table_name:
                 schema.append(f"Table: {table_name}")
                 schema.append(f"CREATE statement: {create_statement}\n")
 
@@ -287,7 +379,7 @@ async def get_file_dataframe(file_uuid: str, table_name: str = 'data'):
         conn.close()
 
 
-@router.get("/create-multi-file-dataframe/{project_uuid}")
+# @router.get("/create-multi-file-dataframe/{project_uuid}")
 async def create_multi_file_dataframe(file_uuids: list[str], project_uuid: str = None):
     """
     This function creates a dataframe for a project from its csv files.
@@ -318,7 +410,7 @@ async def create_multi_file_dataframe(file_uuids: list[str], project_uuid: str =
         
         for table in tables:
             source_table_name = table[0]
-            if source_table_name=="data_cleaned":
+            if source_table_name==CLEANED_TABLE_NAME:
                 # Read data from the source table
                 source_cursor.execute(f"SELECT * FROM {source_table_name}")
                 data = source_cursor.fetchall()
