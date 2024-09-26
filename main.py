@@ -1,18 +1,12 @@
 import logging
 import os
-import sys
-from io import StringIO
 import sqlite3
 
 import httpx
 import pandas as pd
-from io import BytesIO
-import markdown2
-from weasyprint import HTML
 from typing import List
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from backend_dateja.analysis import AdvancedVisualizer
@@ -28,7 +22,7 @@ logger = logging.getLogger(__name__)
 # Data model for the SQL query execution request
 class QueryRequest(BaseModel):
     project_uuid: str
-    file_uuid: List[str]
+    file_uuids: List[str]
     question: str
 
 
@@ -49,8 +43,8 @@ load_dotenv()
 API_KEY = os.getenv("GOOGLE_API_KEY")
 ENDPOINT_URL = os.getenv("DB_ENDPOINT_URL")
 SPEECH2TEXT_CREDS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-
-# for deployment on langgraph cloud
+CLEANED_TABLE_NAME = "data_cleaned"
+ANALYSED_TABLE_NAME = "data_analysed"
 # define csv_agent_graph
 csv_agent_graph = WorkflowManager(api_key=API_KEY, endpoint_url=ENDPOINT_URL).returnGraph()
 
@@ -61,45 +55,51 @@ receptionist_agent = assistant.get_agent()
 # combined agent
 combined_agent = CombinedAgent(api_key=API_KEY, endpoint_url=ENDPOINT_URL)
 
+
+def table_exists(conn, table_name):
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name=?;
+    """, (table_name,))
+    return cursor.fetchone() is None
+
+
 @app.post("/call-model")
 async def call_model(request: QueryRequest):
     project_uuid = request.project_uuid
-    file_uuid = request.file_uuid
+    file_uuids = request.file_uuids
     question = request.question
+    print(request)
     # Check if both uuid and query are provided
-    if not file_uuid or not question or not project_uuid:
-        raise HTTPException(status_code=400, detail="Missing uuid or query")
-
+    if not file_uuids or not question or not project_uuid:
+        raise HTTPException(status_code=400, detail="Missing uuids or query")
     try:
+        async with httpx.AsyncClient() as client:
+            uploads_dir = await client.get(
+                f"{ENDPOINT_URL}/get-uploads-dir"
+            )
+            uploads_dir = uploads_dir.json()    
+
+        for id in file_uuids:
+            # Connect to SQLite and save the cleaned data
+            db_file_path = os.path.join(uploads_dir, f"{id}.sqlite")
+            print("db path: ", db_file_path)
+            table_name = CLEANED_TABLE_NAME
+            conn = sqlite3.connect(db_file_path)
+
+            if table_exists(conn=conn, table_name=table_name):
+                conn.close()
+                raise HTTPException(status_code=404, detail=f"Table '{table_name}' does not exist in the database")
+            else:
+                conn.close()
+        print("Executing invoke")
         response = csv_agent_graph.invoke(request)
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
     return response
-
-@app.post("/data-cleaning-actions")
-async def data_cleaning_actions(request: CleaningRequest):
-    try:
-        async with httpx.AsyncClient() as client:
-            # from other application in port 8000
-            response = await client.get(
-                f"{ENDPOINT_URL}/get-file-dataframe/{request.file_uuid}?table_name=data"
-            )
-            df = pd.read_json(response.json())
-            print(df)
-
-        pipeline = AdvancedDataPipeline(df)
-        string_io = StringIO()
-        response = pipeline.handle_request(request.action)[0].to_csv(
-            string_io, index=False
-        )
-
-    except Exception as e:
-        logger.exception(e)
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-    return StreamingResponse(iter([string_io.getvalue()]), media_type="text/csv")
-
 
 @app.post("/data-cleaning-pipeline")
 async def data_cleaning_pipeline(file_uuid: str):
@@ -118,15 +118,14 @@ async def data_cleaning_pipeline(file_uuid: str):
             print(df)
 
         pipeline = AdvancedDataPipeline(df)
-        cleaned_df = pipeline.run_all()[0] #.to_csv(string_io, index=False)
+        cleaned_df = pipeline.run_all()[0]
        
         # Connect to SQLite and save the cleaned data
         db_path = os.path.join(uploads_dir, f"{file_uuid}.sqlite")
 
         conn = sqlite3.connect(db_path)
         try:
-            cleaned_df.to_sql('data_cleaned', conn, if_exists='replace', index=False)
-            # print("Data saved to 'data_cleaned' table successfully.")
+            cleaned_df.to_sql(CLEANED_TABLE_NAME, conn, if_exists='replace', index=False)
             return {"message": "Finished data cleaning."}
         except Exception as e:
             logger.exception("Error saving data to SQLite.")
@@ -141,75 +140,54 @@ async def data_cleaning_pipeline(file_uuid: str):
     # return {"message": "Finished data cleaning."}
 
 
-@app.post("/data-analysis")
-async def handle_data_analysis(request: AnalysisRequest):
+@app.post("/data-analysis-pipeline")
+async def handle_data_analysis(file_uuid: str):
     try:
         async with httpx.AsyncClient() as client:
-            # from other application in port 8000
-            response = await client.get(
-                f"{ENDPOINT_URL}/get-file-dataframe/{request.file_uuid}"
-            )
-            df = pd.read_json(response.json())
-            print(df)
-
-        visualizer = AdvancedVisualizer(df, api_key=API_KEY)
-        response = visualizer.handle_request(request.action)
-        response = {
-            "insights": response,
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-    return response
-
-
-@app.post("/download-data-analysis")
-async def download_data_analysis(file_uuid):
-    try:
-        async with httpx.AsyncClient() as client:
-            # from other application in port 8000
+            
             response = await client.get(
                 f"{ENDPOINT_URL}/get-file-dataframe/{file_uuid}"
             )
             df = pd.read_json(response.json())
-            print(df)
+            uploads_dir = await client.get(
+                f"{ENDPOINT_URL}/get-uploads-dir"
+            )
+            uploads_dir = uploads_dir.json()
 
         visualizer = AdvancedVisualizer(df, api_key=API_KEY)
         markdown_response = visualizer.handle_request("generate_report")
-        # Convert markdown to HTML
-        html_content = markdown2.markdown(markdown_response)
-        
-        # Add some basic styling
-        styled_html = f"""
-        <html>
-            <head>
-                <style>
-                    body {{ font-family: Arial, sans-serif; line-height: 1.6; padding: 20px; }}
-                    h1, h2, h3 {{ color: #333; }}
-                    table {{ border-collapse: collapse; width: 100%; }}
-                    th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
-                    th {{ background-color: #f2f2f2; }}
-                </style>
-            </head>
-            <body>
-                {html_content}
-            </body>
-        </html>
-        """
-        
-        # Convert HTML to PDF
-        pdf_buffer = BytesIO()
-        HTML(string=styled_html).write_pdf(pdf_buffer)
-        pdf_buffer.seek(0)
-        
-        # Return PDF as a downloadable file
-        return StreamingResponse(
-            pdf_buffer, 
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f"attachment; filename={file_uuid}_data_insights.pdf"
-            }
-        )
+        # Connect to SQLite and save the cleaned data
+        db_path = os.path.join(uploads_dir, f"{file_uuid}.sqlite")
+
+        try:
+            # Connect to (or create) the SQLite database
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            # Create a table for storing Markdown content
+            cursor.execute(f'''
+                CREATE TABLE IF NOT EXISTS {ANALYSED_TABLE_NAME} (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    report_name TEXT NOT NULL,
+                    markdown_content TEXT NOT NULL
+                )
+            ''')
+
+            # Insert Markdown content into the table
+            cursor.execute(f'''
+                INSERT INTO {ANALYSED_TABLE_NAME} (report_name, markdown_content) 
+                VALUES (?, ?)
+            ''', ("Data Insights", markdown_response))
+
+            # Commit and close the connection
+            conn.commit()
+            return {"message": "Finished data analysis."}
+        except Exception as e:
+            logger.exception("Error saving data to SQLite.")
+            raise HTTPException(status_code=500, detail=f"Failed to save analyzed data: {str(e)}")
+        finally:
+            conn.close()
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
