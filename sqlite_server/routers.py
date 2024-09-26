@@ -55,10 +55,10 @@ def table_exists(conn, table_name):
 
 @router.post("/upload-file", description="Allowed file formats: csv, xls, xlsx, sqlite ")
 async def upload_file(
-    file: UploadFile = File(...), project_uuid: str = None, user_uuid: str = None
+    file: UploadFile = File(...)
 ):
     # Check if both uuid and query are provided
-    if not user_uuid or not project_uuid or not file:
+    if not file:
         raise HTTPException(status_code=400, detail="Missing uuids or file")
     allowed_formats = ["csv", "xls", "xlsx", "sqlite"]
     file_extension = os.path.splitext(file.filename)[1][1:].lower()
@@ -126,7 +126,7 @@ async def upload_file(
             )
 
         # Store metadata in the metadata SQLite database
-        store_metadata(file_uuid, project_uuid, user_uuid, UPLOAD_DIR, new_file_path)
+        # store_metadata(file_uuid, project_uuid, user_uuid, UPLOAD_DIR, new_file_path)
         # Return the UUID of the uploaded file
         return JSONResponse(content={"file_uuid": file_uuid})
 
@@ -338,19 +338,19 @@ async def root():
     return {"message": "Hello World"}
 
 
-@router.get("/get-file-metadata/{file_uuid}")
-async def get_file_metadata(file_uuid: str):
-    try:
-        # Query metadata from the metadata SQLite database
-        result: dict = query_metadata(file_uuid, UPLOAD_DIR)
+# @router.get("/get-file-metadata/{file_uuid}")
+# async def get_file_metadata(file_uuid: str):
+#     try:
+#         # Query metadata from the metadata SQLite database
+#         result: dict = query_metadata(file_uuid, UPLOAD_DIR)
 
-        if not result:
-            raise HTTPException(status_code=404, detail="File metadata not found")
+#         if not result:
+#             raise HTTPException(status_code=404, detail="File metadata not found")
 
-        return JSONResponse(content=result)
+#         return JSONResponse(content=result)
 
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 
 @router.get("/get-file-dataframe/{file_uuid}")
