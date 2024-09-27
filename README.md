@@ -13,35 +13,50 @@
 </div>
 
 ----------------------------------------
-DataFusion is an innovative AI-powered platform that
-transforms how businesses interact and manage data. It offers a full-fledge web-framework to manage your data, use natural language querying and visualization, and allows multi-data source interactions.
+**DataFusion** is an innovative AI-powered platform that transforms how businesses interact with and manage data. It offers a full-fledged web framework to manage your data, use natural language querying and visualization, and enables interactions across multiple data sources.
 
 <p align="center">
-  <img src="./docs/logos/DataFusion_Description.png"/>
+  <img src="./docs/logos/DataFusion_Description.svg"/>
 </p>
 
 
-## Features
+## 🛠️ Features
 
 
+1. **Easy grouping** of similar data sources (Projects and Active Projects)
+2. **Language Query** for intuitive multi-table data exploration
+3. **Generative interactive charts** for dynamic data visualization
+4. **Automated data insights** and **data cleaning pipelines**
+5. **Text-to-SQL** query options
+6. **Voice-activated** chart explanations
+7. Supports `csv`, `xls`, and `sqlite` file formats
 
-## Creating and running Docker Image
+## 🚀 Get Started
 
-Building a docker image:
-- Enter the repo: `cd genai-ex-datafusion`
-- Run command: `docker build -t datafusion_v1 .`
- 
-Running a docker image: 
-- Connecting with the created image `datafusion_v1`: `docker run -p 8000:8000 datafusion_v1`
+To get started:
+
+1. Jump to the [project page](project/page/link) and create an account.
+2. Create a project for your data source. For example: `Project E-Commerce`
+3. Upload all the relevant data sources to the project. For example: `Customers.csv`, `Profits.csv`, `Orders.csv`, and `Products.csv`.
+4. Load the project into **Active Projects**. This step will run two different pipelines: data cleaning and data analysis.
+5. Once the active project is ready, open the `DataFusion Chat` window on the right.
+6. Ask questions in plain English. For example: `How were mobile phone sales in the first quarter of 2024?` or `Plot a bar chart for mobile phone sales by month.`
+7. Store the generated visualizations to the `Visualizer` page for later exploration. 
 
 
-Inspect: `docker run -it --entrypoint /bin/sh datafusion_firstapp`
+## 💡 Example Queries
 
-## Access APIs
-Once you run the docker image, you can access the APIs as follows:
-- Open your browser and enter: `localhost:8000/docs`
-- API `upload_csv`: 
-    - payload: `filename: ~/datafusion/ai/data/titanic.csv`
-- API `csv_interactor`: 
-    - payload: `query`: your question
-                `filename: ~/datafusion/ai/data/titanic.csv`
+
+## 📖 About us
+We are a dedicated team of developers passionate about simplifying data analysis and visualization. 
+
+Team members: 
+- Akshay Pimpalkar
+- Himesh Parashar
+- Kiran Chawan
+- Mamoon Jan
+
+
+## 🤝 Citations
+We would like to acknowledge the work of Dhruv Ateja for his project on Data Visualization. His strategy inspired us in developing the text-to-query methodology for this project.
+
