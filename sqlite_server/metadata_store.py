@@ -1,7 +1,6 @@
 import os
 import sqlite3
 
-
 def store_metadata(
     file_uuid: str, project_uuid: str, user_uuid: str, upload_dir: str, file_path: str
 ):

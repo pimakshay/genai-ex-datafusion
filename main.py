@@ -9,8 +9,6 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from langchain_core.prompts import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
-from langchain_core.output_parsers import JsonOutputParser
 
 from backend_dateja.analysis import AdvancedVisualizer
 from backend_dateja.cleaning import AdvancedDataPipeline
@@ -207,45 +205,6 @@ async def handle_data_analysis(file_uuid: str):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
-# import base64
-# def image_to_base64(image_path):
-#     with open(image_path, "rb") as image_file:
-#         return base64.b64encode(image_file.read()).decode('utf-8')
-
-
-@app.post("/summarize-vis")
-async def summarize_visualization(vis_data: dict = {}):
-    """Summarize input vis data and image."""
-    # image_base64 = image_to_base64(image_path)
-    system_template = """You are an expert data analyst and visualization interpreter. Your task is to summarize a data visualization based on the raw visualization data, visualizaiton type, and the description of the visualization. 
-    Provide a clear, concise summary that captures the key insights and trends. Your summary should be suitable for being read aloud to a user.
-
-    Follow these guidelines:
-    1. Analyze the data to ensure a comprehensive understanding.
-    2. Focus on the most important trends, patterns, or insights from the data.
-    3. Mention any discrepancies between the visualization and the raw data, if any.
-    4. Keep the language clear and accessible, avoiding overly technical terms.
-    5. Limit the summary to about 3-5 sentences for easy listening.
-    6. End with a key takeaway or main point of the visualization.
-
-    Remember, the user will hear this summary, so make it easy to follow and understand when spoken aloud."""
-
-    human_template = f"""Visualization Data (JSON format):
-    {{vis_data}}
-
-    Please summarize this visualization, focusing on the key insights and trends, in a way that can be easily understood when read aloud."""
-
-    # image_template = f"![fruit_image](data:image/jpeg;base64,{image_base64})"
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_template),
-        ("human", human_template),
-        # ("human", image_template),
-    ])
-
-    response = summarizer_llm.llm.invoke(prompt.format_messages(vis_data=vis_data))
-    return {"summary": response.content}
 
 if __name__ == "__main__":
     import uvicorn
