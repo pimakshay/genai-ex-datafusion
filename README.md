@@ -1,5 +1,29 @@
-# genai-ex-datafusion
-Letting you control, analyze, and visualize your data using Google Cloud and AI.
+<div align="center">
+
+  <a href="https://github.com/Ki55n/DataFusion-Gen-AI-Hack">
+    <img src="./docs/logos/datafusion_logo.png" alt="DataFusion" width="200">
+  </a>
+
+  <p align="center">
+    <!-- <br /> -->
+    <a href="https://data-fusion-umber.vercel.app/login">Website</a>
+    ·
+    <a href="./docs">Docs</a>
+  </p>
+</div>
+
+----------------------------------------
+DataFusion is an innovative AI-powered platform that
+transforms how businesses interact and manage data. It offers a full-fledge web-framework to manage your data, use natural language querying and visualization, and allows multi-data source interactions.
+
+<p align="center">
+  <img src="./docs/logos/DataFusion_Description.png"/>
+</p>
+
+
+## Features
+
+
 
 ## Creating and running Docker Image
 
