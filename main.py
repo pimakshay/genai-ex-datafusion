@@ -206,7 +206,13 @@ async def handle_data_analysis(file_uuid: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+# Basic hello world endpoint
+@app.get("/")
+async def root():
+    return {"message": "This is an ai-server."}
+
+
+
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8001)

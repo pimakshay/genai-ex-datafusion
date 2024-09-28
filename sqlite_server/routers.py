@@ -10,7 +10,7 @@ import pandas as pd
 from typing import List
 from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile, Query
 from fastapi.responses import JSONResponse
-from metadata_store import query_metadata, store_metadata
+# from metadata_store import query_metadata, store_metadata
 from pydantic import BaseModel
 from io import StringIO
 from fastapi.responses import StreamingResponse
@@ -44,12 +44,17 @@ def convert_dataframe_to_sqlite(df, sqlite_file_path: str):
 
 def table_exists(conn, table_name):
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT name FROM sqlite_master 
-        WHERE type='table' AND name=?;
-    """, (table_name,))
-    if cursor.fetchone() is None:
-        raise HTTPException(status_code=404, detail=f"Table '{table_name}' does not exist in the database")
+    cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='table';")
+    tables = cursor.fetchall()
+
+    has_cleaned_table = False
+    for table in tables:
+        table_name, create_statement = table
+        if table_name in table_name:
+            has_cleaned_table = True
+
+    if has_cleaned_table is False:
+        raise HTTPException(status_code=404, detail=f"Cleaned Table does not exist in the database")
     
     return True
 
@@ -283,6 +288,7 @@ async def get_schema(uuid: str):
     try:
         # Connect to the SQLite database
         conn = sqlite3.connect(db_path)
+        table_exists(conn=conn, table_name=CLEANED_TABLE_NAME)
         cursor = conn.cursor()
 
         # Get the table schema from sqlite_master
@@ -335,7 +341,7 @@ async def get_schemas(file_uuids:  List[str] = Query(..., description="List of f
 # Basic hello world endpoint
 @router.get("/")
 async def root():
-    return {"message": "Hello World"}
+    return {"message": "This is a sqlite-server"}
 
 
 # @router.get("/get-file-metadata/{file_uuid}")
@@ -410,7 +416,7 @@ async def create_multi_file_dataframe(file_uuids: list[str], project_uuid: str =
         
         for table in tables:
             source_table_name = table[0]
-            if source_table_name==CLEANED_TABLE_NAME:
+            if CLEANED_TABLE_NAME in source_table_name:
                 # Read data from the source table
                 source_cursor.execute(f"SELECT * FROM {source_table_name}")
                 data = source_cursor.fetchall()
