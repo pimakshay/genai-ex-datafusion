@@ -52,7 +52,7 @@ const Asidebar = () => {
         </div>
       </aside>
       <button
-        className="absolute ml-1 transition-all duration-300 ease-in-out"
+        className="absolute ml-0 transition-all duration-300 ease-in-out"
         style={{ left: isOpen ? "270px" : "0" }}
         onClick={() => setIsOpen(!isOpen)}
       >
