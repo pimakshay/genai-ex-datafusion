@@ -10,12 +10,12 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend_dateja.analysis import AdvancedVisualizer
-from backend_dateja.cleaning import AdvancedDataPipeline
+from backend.analysis import AdvancedVisualizer
+from backend.cleaning import AdvancedDataPipeline
 
 # from backend_dateja.my_agent.main import graph
-from backend_dateja.my_agent.WorkflowManager import WorkflowManager
-from backend_dateja.my_agent.LLMManager import LLMManager
+from backend.my_agent.WorkflowManager import WorkflowManager
+from backend.my_agent.LLMManager import LLMManager
 
 logger = logging.getLogger(__name__)
 

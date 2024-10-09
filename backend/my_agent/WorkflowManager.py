@@ -1,7 +1,7 @@
 from langgraph.graph import StateGraph
-from backend_dateja.my_agent.State import InputState, OutputState
-from backend_dateja.my_agent.SQLAgent import SQLAgent
-from backend_dateja.my_agent.DataFormatter import DataFormatter
+from backend.my_agent.State import InputState, OutputState
+from backend.my_agent.SQLAgent import SQLAgent
+from backend.my_agent.DataFormatter import DataFormatter
 from langgraph.graph import END
 from typing import List
 
