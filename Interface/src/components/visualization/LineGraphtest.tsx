@@ -1,7 +1,10 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as d3 from "d3";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface DataPoint {
   x: number;
@@ -16,18 +19,33 @@ interface LineGraphProps {
   width?: string;
 }
 
-export default function Component({ data, width = "30%" }: LineGraphProps) {
+export default function LineGraph({ data, width = "100%" }: LineGraphProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    if (!svgRef.current) return;
+    const handleResize = () => {
+      if (containerRef.current) {
+        const { width } = containerRef.current.getBoundingClientRect();
+        setDimensions({ width, height: Math.min(400, width * 0.6) });
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize(); // Initial setup
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!svgRef.current || dimensions.width === 0) return;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove(); // Clear previous render
 
-    const margin = { top: 20, right: 30, bottom: 30, left: 40 };
-    const width = svgRef.current.clientWidth - margin.left - margin.right;
-    const height = Math.min(400, width * 0.75) - margin.top - margin.bottom;
+    const margin = { top: 20, right: 30, bottom: 40, left: 50 };
+    const width = dimensions.width - margin.left - margin.right;
+    const height = dimensions.height - margin.top - margin.bottom;
 
     const chart = svg
       .attr("width", width + margin.left + margin.right)
@@ -102,18 +120,72 @@ export default function Component({ data, width = "30%" }: LineGraphProps) {
       .style("text-anchor", "middle")
       .style("fill", "#8899A6")
       .text("Time");
-  }, [data]);
+  }, [data, dimensions]);
+
+  const handleDownload = () => {
+    if (!svgRef.current) return;
+
+    // Clone the SVG node
+    const svgNode = svgRef.current.cloneNode(true) as SVGSVGElement;
+
+    // Create a white background
+    const background = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "rect"
+    );
+    background.setAttribute("width", "100%");
+    background.setAttribute("height", "100%");
+    background.setAttribute("fill", "white");
+
+    // Insert the background as the first child of the SVG
+    svgNode.insertBefore(background, svgNode.firstChild);
+
+    // Convert text and lines to black for better visibility on white background
+    svgNode.querySelectorAll("text, line, path").forEach((element) => {
+      element.setAttribute("fill", "black");
+      element.setAttribute("stroke", "black");
+    });
+
+    // Convert SVG to a string
+    const svgData = new XMLSerializer().serializeToString(svgNode);
+
+    // Create a Blob with the SVG data
+    const svgBlob = new Blob([svgData], {
+      type: "image/svg+xml;charset=utf-8",
+    });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    // Create and trigger download
+    const downloadLink = document.createElement("a");
+    downloadLink.href = svgUrl;
+    downloadLink.download = "line_graph.svg";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    // Clean up the object URL
+    URL.revokeObjectURL(svgUrl);
+  };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-900">
-      <div
-        className={`w-full ${width} min-w-[300px] bg-gray-800 p-4 rounded-lg shadow-lg`}
-      >
-        <h2 className="text-xl font-bold mb-4 text-center text-gray-200">
+    <Card className="w-full max-w-4xl mx-auto bg-gray-900 text-gray-200">
+      <CardHeader>
+        <CardTitle className="text-2xl font-bold text-center">
           Survival Rate Over Time
-        </h2>
-        <svg ref={svgRef} className="w-full"></svg>
-      </div>
-    </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center space-y-4">
+        <div ref={containerRef} className="w-full" style={{ width }}>
+          <svg ref={svgRef} className="w-full h-auto"></svg>
+        </div>
+        <Button
+          onClick={handleDownload}
+          className="flex items-center space-x-2"
+        >
+          <Download className="w-4 h-4" />
+          <span>Download Graph</span>
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

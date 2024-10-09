@@ -72,6 +72,7 @@ export async function updateVisualizationLayout(
   updates: LayoutUpdate[]
 ): Promise<boolean> {
   try {
+    console.log("yoyo");
     await client.connect();
     const database = client.db("datafusion");
     const visualizations = database.collection("visualizations");

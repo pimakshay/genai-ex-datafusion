@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 interface DataPoint {
   x: number;
@@ -23,13 +25,29 @@ interface ScatterPlotProps {
 
 export default function D3ScatterPlot({ data }: ScatterPlotProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    if (!svgRef.current || data.series.length === 0) return;
+    const handleResize = () => {
+      if (containerRef.current) {
+        const { width } = containerRef.current.getBoundingClientRect();
+        setDimensions({ width, height: width * 0.5 }); // Set height to 50% of width for a 2:1 aspect ratio
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    handleResize(); // Initial setup
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!svgRef.current || data.series.length === 0 || dimensions.width === 0)
+      return;
 
     const margin = { top: 20, right: 20, bottom: 40, left: 40 };
-    const width = 400 - margin.left - margin.right;
-    const height = 200 - margin.top - margin.bottom;
+    const width = dimensions.width - margin.left - margin.right;
+    const height = dimensions.height - margin.top - margin.bottom;
 
     // Clear any existing SVG content
     d3.select(svgRef.current).selectAll("*").remove();
@@ -109,7 +127,51 @@ export default function D3ScatterPlot({ data }: ScatterPlotProps) {
 
         svg.selectAll(".tooltip").remove();
       });
-  }, [data]);
+  }, [data, dimensions]);
+
+  const handleDownload = () => {
+    if (!svgRef.current) return;
+
+    // Clone the SVG node
+    const svgNode = svgRef.current.cloneNode(true) as SVGSVGElement;
+
+    // Create a white background
+    const background = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "rect"
+    );
+    background.setAttribute("width", "100%");
+    background.setAttribute("height", "100%");
+    background.setAttribute("fill", "white");
+
+    // Insert the background as the first child of the SVG
+    svgNode.insertBefore(background, svgNode.firstChild);
+
+    // Convert text fill to black for better visibility on white background
+    svgNode.querySelectorAll("text").forEach((textElement) => {
+      textElement.style.fill = "black";
+    });
+
+    // Convert SVG to a string
+    const svgData = new XMLSerializer().serializeToString(svgNode);
+
+    // Create a Blob with the SVG data
+    const svgBlob = new Blob([svgData], {
+      type: "image/svg+xml;charset=utf-8",
+    });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    // Create and trigger download
+    const downloadLink = document.createElement("a");
+    downloadLink.href = svgUrl;
+    downloadLink.download = "scatter_plot.svg";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    // Clean up the object URL
+    URL.revokeObjectURL(svgUrl);
+  };
 
   return (
     <Card className="w-full max-w-3xl mx-auto bg-gray-800 text-white">
@@ -118,8 +180,17 @@ export default function D3ScatterPlot({ data }: ScatterPlotProps) {
           D3 Scatter Plot
         </CardTitle>
       </CardHeader>
-      <CardContent className="flex justify-center">
-        <svg ref={svgRef}></svg>
+      <CardContent className="flex flex-col items-center space-y-4">
+        <div ref={containerRef} className="w-full">
+          <svg ref={svgRef} className="w-full h-auto"></svg>
+        </div>
+        <Button
+          onClick={handleDownload}
+          className="flex items-center space-x-2"
+        >
+          <Download className="w-4 h-4" />
+          <span>Download Plot</span>
+        </Button>
       </CardContent>
     </Card>
   );

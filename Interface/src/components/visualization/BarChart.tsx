@@ -2,26 +2,24 @@
 
 import React, { useRef, useEffect, useState } from "react";
 import * as d3 from "d3";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 interface BarChartProps {
   data: { label: string; value: number }[];
+  // summary: string
 }
 
-export default function BarChart({ data }: BarChartProps) {
+export default function DownloadableBarChart({ data }: BarChartProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-
-  console.log("Bar Chart Render");
-  console.log("Data:", data);
-  console.log("Dimensions:", dimensions);
 
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current) {
         const { width, height } = containerRef.current.getBoundingClientRect();
-        console.log("Container size:", { width, height });
-        setDimensions({ width, height });
+        setDimensions({ width, height: height - 100 }); // Adjust height to account for download button and summary
       }
     };
 
@@ -31,19 +29,15 @@ export default function BarChart({ data }: BarChartProps) {
   }, []);
 
   useEffect(() => {
-    if (!svgRef.current || dimensions.width === 0 || dimensions.height === 0) {
-      console.log("SVG or dimensions not ready");
+    if (!svgRef.current || dimensions.width === 0 || dimensions.height === 0)
       return;
-    }
 
-    console.log("Rendering chart");
     const svg = d3.select(svgRef.current);
     svg.selectAll("*").remove();
 
-    const { width, height } = dimensions;
     const margin = { top: 40, right: 30, bottom: 50, left: 60 };
-    const chartWidth = width - margin.left - margin.right;
-    const chartHeight = height - margin.top - margin.bottom;
+    const chartWidth = dimensions.width - margin.left - margin.right;
+    const chartHeight = dimensions.height - margin.top - margin.bottom;
 
     const x = d3.scaleBand().range([0, chartWidth]).padding(0.3);
     const y = d3.scaleLinear().range([chartHeight, 0]);
@@ -54,22 +48,6 @@ export default function BarChart({ data }: BarChartProps) {
     const chart = svg
       .append("g")
       .attr("transform", `translate(${margin.left},${margin.top})`);
-
-    // Create tooltip
-    const tooltip = d3
-      .select(containerRef.current)
-      .append("div")
-      .attr("class", "tooltip")
-      .style("opacity", 0)
-      .style("position", "absolute")
-      .style("background-color", "rgba(0, 0, 0, 0.8)")
-      .style("color", "#fff")
-      .style("padding", "8px")
-      .style("border-radius", "4px")
-      .style("font-size", "12px")
-      .style("pointer-events", "none")
-      .style("transition", "opacity 0.2s ease")
-      .style("z-index", "10");
 
     // Create bars
     chart
@@ -84,20 +62,7 @@ export default function BarChart({ data }: BarChartProps) {
       .attr("height", (d) => chartHeight - y(d.value))
       .attr("fill", "#60A5FA")
       .attr("rx", 4)
-      .attr("ry", 4)
-      .on("mousemove", function (event, d) {
-        const [mouseX, mouseY] = d3.pointer(event, containerRef.current);
-        d3.select(this).attr("fill", "#3B82F6").attr("cursor", "pointer");
-        tooltip
-          .style("opacity", 1)
-          .html(`${d.label}: ${d.value}`)
-          .style("left", `${mouseX}px`)
-          .style("top", `${mouseY - 40}px`);
-      })
-      .on("mouseout", function () {
-        d3.select(this).attr("fill", "#60A5FA").attr("cursor", "default");
-        tooltip.style("opacity", 0);
-      });
+      .attr("ry", 4);
 
     // Add X Axis
     chart
@@ -105,6 +70,7 @@ export default function BarChart({ data }: BarChartProps) {
       .attr("transform", `translate(0,${chartHeight})`)
       .call(d3.axisBottom(x).tickSize(0))
       .selectAll("text")
+      .attr("class", "axis-text")
       .style("text-anchor", "middle")
       .style("fill", "rgba(255, 255, 255, 0.8)")
       .style("font-size", "12px");
@@ -114,6 +80,7 @@ export default function BarChart({ data }: BarChartProps) {
       .append("g")
       .call(d3.axisLeft(y).ticks(5).tickSize(-chartWidth))
       .selectAll("text")
+      .attr("class", "axis-text")
       .style("fill", "rgba(255, 255, 255, 0.8)")
       .style("font-size", "12px");
 
@@ -126,37 +93,85 @@ export default function BarChart({ data }: BarChartProps) {
       .append("text")
       .attr("class", "chart-title")
       .attr("text-anchor", "middle")
-      .attr("x", width / 2)
+      .attr("x", dimensions.width / 2)
       .attr("y", margin.top / 2)
       .style("fill", "rgba(255, 255, 255, 0.9)")
       .style("font-size", "18px")
       .style("font-weight", "bold")
       .text("Interactive Bar Chart");
-
-    // Add aria-label for accessibility
-    svg.attr("aria-label", "Interactive bar chart showing data distribution");
   }, [data, dimensions]);
 
-  if (!data || data.length === 0) {
-    return <div className="text-white">No data available for the chart.</div>;
-  }
+  const handleDownload = () => {
+    if (!svgRef.current) return;
+
+    // Clone the SVG node
+    const svgNode = svgRef.current.cloneNode(true) as SVGSVGElement;
+
+    // Create a white background
+    const background = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "rect"
+    );
+    background.setAttribute("width", "100%");
+    background.setAttribute("height", "100%");
+    background.setAttribute("fill", "white");
+
+    // Insert the background as the first child of the SVG
+    svgNode.insertBefore(background, svgNode.firstChild);
+
+    // Convert text fill to black for better visibility on white background
+    svgNode.querySelectorAll("text").forEach((textElement) => {
+      textElement.style.fill = "black";
+    });
+
+    // Ensure axis lines are visible
+    svgNode.querySelectorAll(".tick line").forEach((line) => {
+      line.setAttribute("stroke", "rgba(0, 0, 0, 0.1)");
+    });
+
+    // Convert SVG to a string
+    const svgData = new XMLSerializer().serializeToString(svgNode);
+
+    // Create a Blob with the SVG data
+    const svgBlob = new Blob([svgData], {
+      type: "image/svg+xml;charset=utf-8",
+    });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    // Create and trigger download
+    const downloadLink = document.createElement("a");
+    downloadLink.href = svgUrl;
+    downloadLink.download = "bar_chart.svg";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    // Clean up the object URL
+    URL.revokeObjectURL(svgUrl);
+  };
 
   return (
-    <div
-      ref={containerRef}
-      className="w-full h-full relative"
-      style={{ minHeight: "400px" }}
-    >
-      {dimensions.width === 0 || dimensions.height === 0 ? (
-        <div className="text-white">Loading chart...</div>
-      ) : (
-        <svg
-          ref={svgRef}
-          width={dimensions.width}
-          height={dimensions.height}
-          className="w-full h-full"
-        />
-      )}
+    <div className="flex flex-col items-center space-y-4">
+      <div
+        ref={containerRef}
+        className="w-full relative"
+        style={{ height: "400px" }}
+      >
+        {dimensions.width === 0 || dimensions.height === 0 ? (
+          <div className="text-white">Loading chart...</div>
+        ) : (
+          <svg
+            ref={svgRef}
+            width={dimensions.width}
+            height={dimensions.height}
+            className="w-full h-full"
+          />
+        )}
+      </div>
+      <Button onClick={handleDownload} className="flex items-center space-x-2">
+        <Download className="w-4 h-4" />
+        <span>Download Chart</span>
+      </Button>
     </div>
   );
 }

@@ -1,14 +1,16 @@
-//@ts-nocheck
 "use client";
 
 import React, { useRef, useEffect, useState, useMemo } from "react";
 import * as d3 from "d3";
+import { Button } from "@/components/ui/button";
+import { Download } from "lucide-react";
 
 interface PieChartProps {
   data: { label: string; value: number }[];
 }
 
-export default function Component({ data }: PieChartProps) {
+export default function ResponsivePieChart({ data }: PieChartProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [isInitialRender, setIsInitialRender] = useState(true);
@@ -42,9 +44,9 @@ export default function Component({ data }: PieChartProps) {
 
   useEffect(() => {
     const handleResize = () => {
-      if (svgRef.current) {
-        const { width, height } = svgRef.current.getBoundingClientRect();
-        setDimensions({ width, height });
+      if (containerRef.current) {
+        const { width, height } = containerRef.current.getBoundingClientRect();
+        setDimensions({ width, height: Math.min(width, height) });
       }
     };
 
@@ -198,15 +200,73 @@ export default function Component({ data }: PieChartProps) {
     };
   }, [data, dimensions, pie, color, isInitialRender]);
 
+  const handleDownload = () => {
+    if (!svgRef.current) return;
+
+    // Clone the SVG node
+    const svgNode = svgRef.current.cloneNode(true) as SVGSVGElement;
+
+    // Create a white background
+    const background = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "rect"
+    );
+    background.setAttribute("width", "100%");
+    background.setAttribute("height", "100%");
+    background.setAttribute("fill", "white");
+
+    // Insert the background as the first child of the SVG
+    svgNode.insertBefore(background, svgNode.firstChild);
+
+    // Convert text fill to black for better visibility on white background
+    svgNode.querySelectorAll("text").forEach((textElement) => {
+      textElement.style.fill = "black";
+    });
+
+    // Convert SVG to a string
+    const svgData = new XMLSerializer().serializeToString(svgNode);
+
+    // Create a Blob with the SVG data
+    const svgBlob = new Blob([svgData], {
+      type: "image/svg+xml;charset=utf-8",
+    });
+    const svgUrl = URL.createObjectURL(svgBlob);
+
+    // Create and trigger download
+    const downloadLink = document.createElement("a");
+    downloadLink.href = svgUrl;
+    downloadLink.download = "pie_chart.svg";
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+
+    // Clean up the object URL
+    URL.revokeObjectURL(svgUrl);
+  };
+
   return (
-    <div className="relative w-full h-full">
-      <svg
-        ref={svgRef}
-        width="100%"
-        height="100%"
-        className="overflow-visible"
-        aria-label="Interactive pie chart showing data distribution"
-      />
+    <div className="flex flex-col items-center space-y-4">
+      <div
+        ref={containerRef}
+        className="w-full relative"
+        style={{ height: "400px" }}
+      >
+        {dimensions.width === 0 || dimensions.height === 0 ? (
+          <div className="text-white">Loading chart...</div>
+        ) : (
+          <svg
+            ref={svgRef}
+            width={dimensions.width}
+            height={dimensions.height}
+            className="w-full h-full"
+            aria-label="Interactive pie chart showing data distribution"
+          />
+        )}
+      </div>
+      <Button onClick={handleDownload} className="flex items-center space-x-2">
+        <Download className="w-4 h-4" />
+        <span>Download Chart</span>
+      </Button>
     </div>
   );
 }
