@@ -7,6 +7,7 @@ import markdown2
 from weasyprint import HTML
 
 import pandas as pd
+import tabula
 from typing import List
 from fastapi import APIRouter, FastAPI, File, HTTPException, UploadFile, Query
 from fastapi.responses import JSONResponse
@@ -66,14 +67,14 @@ def table_exists(conn, table_name):
     
     return True
 
-@router.post("/upload-file", description="Allowed file formats: csv, xls, xlsx, sqlite ")
+@router.post("/upload-file", description="Allowed file formats: csv, xls, xlsx, sqlite, pdf ")
 async def upload_file(
-    file: UploadFile = File(...)
+    file: UploadFile = File(...), column_names: List[str] = Query(..., description="List of column names"),
 ):
     # Check if both uuid and query are provided
     if not file:
         raise HTTPException(status_code=400, detail="Missing uuids or file")
-    allowed_formats = ["csv", "xls", "xlsx", "sqlite"]
+    allowed_formats = ["csv", "xls", "xlsx", "sqlite", "pdf"]
     file_extension = os.path.splitext(file.filename)[1][1:].lower()
 
     if file_extension not in allowed_formats:
@@ -132,12 +133,36 @@ async def upload_file(
                 raise HTTPException(
                     status_code=500, detail=f"Error converting Excel to SQLite: {str(e)}"
                 )
+        # Handle .xls and .xlsx files
+        elif file_extension in [".pdf"]:
+            if column_names is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Column names should ne passed with PDF files."
+                )
+            pdf_file_path = os.path.join(UPLOAD_DIR, file.filename)
+            new_file_path = os.path.join(UPLOAD_DIR, f"{file_uuid}.sqlite")
+
+            # Save the Excel file temporarily
+            with open(pdf_file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+
+            # Convert Excel to SQLite
+            try:
+                df = tabula.read_pdf(pdf_file_path, pages='all', multiple_tables=False, stream=True,pandas_options={'header': None})
+                df = pd.concat(df, ignore_index=True)
+                df.columns = column_names
+                convert_dataframe_to_sqlite(df, new_file_path)
+                os.remove(pdf_file_path)  # Remove the Excel file after conversion
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500, detail=f"Error converting PDF to SQLite: {str(e)}"
+                )
         else:
             raise HTTPException(
                 status_code=400,
-                detail="Invalid file type. Only .sqlite and .csv files are supported.",
+                detail="Invalid file type. Only .sqlite, .csv, .xls, .xlsx, or .pdf files are supported.",
             )
-
         # Store metadata in the metadata SQLite database
         # store_metadata(file_uuid, project_uuid, user_uuid, UPLOAD_DIR, new_file_path)
         # Return the UUID of the uploaded file

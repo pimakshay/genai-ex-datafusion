@@ -15,4 +15,4 @@ plotly==5.3.1
 aiohttp
 markdown2
 weasyprint
-wikipedia
+tabula-py
