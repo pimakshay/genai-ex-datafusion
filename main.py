@@ -116,27 +116,35 @@ async def call_model(request: QueryRequest):
 async def data_cleaning_pipeline(file_uuid: str):
     try:
         async with httpx.AsyncClient() as client:
-            # from other application in port 8000
-            response = await client.get(
+            responses = await client.get(
                 f"{ENDPOINT_URL}/get-file-dataframe/{file_uuid}"
             )
 
             uploads_dir = await client.get(f"{ENDPOINT_URL}/get-uploads-dir")
             uploads_dir = uploads_dir.json()
-            df = pd.read_json(response.json())
-            print(df)
-
-        pipeline = AdvancedDataPipeline(df)
-        cleaned_df = pipeline.run_all()[0]
+            df = []
+            for res in responses.json():
+                df.append(pd.read_json(res))
 
         # Connect to SQLite and save the cleaned data
         db_path = os.path.join(uploads_dir, f"{file_uuid}.sqlite")
 
         conn = sqlite3.connect(db_path)
         try:
-            cleaned_df.to_sql(
-                CLEANED_TABLE_NAME, conn, if_exists="replace", index=False
-            )
+            # if isinstance(df, list):
+            for idx, dataframe in enumerate(df):
+                pipeline = AdvancedDataPipeline(dataframe)
+                cleaned_df = pipeline.run_all()[0]
+                cleaned_df.to_sql(f"{CLEANED_TABLE_NAME}_{idx+1}", 
+                                conn, 
+                                if_exists="replace", 
+                                index=False)
+            # else:
+            #     pipeline = AdvancedDataPipeline(df[0])
+            #     cleaned_df = pipeline.run_all()[0]
+            #     cleaned_df.to_sql(
+            #         CLEANED_TABLE_NAME, conn, if_exists="replace", index=False
+            #     )
             return {"message": "Finished data cleaning."}
         except Exception as e:
             logger.exception("Error saving data to SQLite.")
@@ -150,22 +158,20 @@ async def data_cleaning_pipeline(file_uuid: str):
         logger.exception("Error during the data cleaning pipeline.")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-    # return {"message": "Finished data cleaning."}
-
 
 @app.post("/data-analysis-pipeline")
 async def handle_data_analysis(file_uuid: str):
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"{ENDPOINT_URL}/get-file-dataframe/{file_uuid}"
+            responses = await client.get(
+                f"{ENDPOINT_URL}/get-file-dataframe/{file_uuid}?table_prefix={CLEANED_TABLE_NAME}"
             )
-            df = pd.read_json(response.json())
+            df = []
+            for res in responses.json():
+                df.append(pd.read_json(res))
             uploads_dir = await client.get(f"{ENDPOINT_URL}/get-uploads-dir")
             uploads_dir = uploads_dir.json()
 
-        visualizer = AdvancedVisualizer(df, api_key=API_KEY)
-        markdown_response = visualizer.handle_request("generate_report")
         # Connect to SQLite and save the cleaned data
         db_path = os.path.join(uploads_dir, f"{file_uuid}.sqlite")
 
@@ -173,24 +179,28 @@ async def handle_data_analysis(file_uuid: str):
             # Connect to (or create) the SQLite database
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
+            # if isinstance(df, list):
+            for idx, dataframe in enumerate(df):
+                visualizer = AdvancedVisualizer(dataframe, api_key=API_KEY)
+                markdown_response = visualizer.handle_request("generate_report")
 
-            # Create a table for storing Markdown content
-            cursor.execute(f"""
-                CREATE TABLE IF NOT EXISTS {ANALYSED_TABLE_NAME} (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    report_name TEXT NOT NULL,
-                    markdown_content TEXT NOT NULL
+                # Create a table for storing Markdown content
+                cursor.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {ANALYSED_TABLE_NAME}_{idx+1} (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        report_name TEXT NOT NULL,
+                        markdown_content TEXT NOT NULL
+                    )
+                """)
+
+                # Insert Markdown content into the table
+                cursor.execute(
+                    f"""
+                    INSERT INTO {ANALYSED_TABLE_NAME}_{idx+1} (report_name, markdown_content) 
+                    VALUES (?, ?)
+                """,
+                    ("Data Insights", markdown_response),
                 )
-            """)
-
-            # Insert Markdown content into the table
-            cursor.execute(
-                f"""
-                INSERT INTO {ANALYSED_TABLE_NAME} (report_name, markdown_content) 
-                VALUES (?, ?)
-            """,
-                ("Data Insights", markdown_response),
-            )
 
             # Commit and close the connection
             conn.commit()
