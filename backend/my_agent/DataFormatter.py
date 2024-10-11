@@ -1,7 +1,7 @@
 import json
 from langchain_core.prompts import ChatPromptTemplate
-from backend_dateja.my_agent.LLMManager import LLMManager
-from backend_dateja.my_agent.graph_instructions import graph_instructions
+from backend.my_agent.LLMManager import LLMManager
+from backend.my_agent.graph_instructions import graph_instructions
 
 
 class DataFormatter:
