@@ -1,11 +1,11 @@
 "use client";
 
-import { ChatPanel } from "@/components/active-project-detail/ChatPanel";
 import { FileList } from "@/components/active-project-detail/FileList";
 import { useState, useEffect } from "react";
 import { getFilesByUserIdProjectId } from "@/db/files";
 import { UserAuth } from "@/app/context/AuthContext";
 import { useRouter } from "next/navigation";
+import { ChatPanel } from "@/components/active-project-detail/ChatPanel";
 
 interface FileItem {
   file_uuid: string;

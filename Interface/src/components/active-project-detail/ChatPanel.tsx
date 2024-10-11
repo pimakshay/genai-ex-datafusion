@@ -10,6 +10,7 @@ import { UserAuth } from "@/app/context/AuthContext";
 import LineGraph from "../visualization/LineGraph";
 import LineGraphTest from "../visualization/LineGraphtest";
 import D3ScatterPlot from "../visualization/ScatterPlot";
+import Suggestion from "./Suggestion";
 
 interface ChatMessage {
   id: string;
@@ -78,9 +79,9 @@ export function ChatPanel({
           id: (Date.now() + 1).toString(),
           sender: "ai",
           content:
-          `${data.answer}\n\n` +
-          `Generated SQL Query:\n` +
-          `\`${data.sql_query}\`\n` ||
+            `${data.answer}\n\n` +
+              `Generated SQL Query:\n` +
+              `\`${data.sql_query}\`\n` ||
             "Sorry, I couldn't process that request.",
           visualization: data.visualization,
           formatted_data_for_visualization:
@@ -359,6 +360,8 @@ export function ChatPanel({
           </div>
         ))}
       </ScrollArea>
+
+      <Suggestion />
       <div className="p-4 bg-transparent">
         <form
           onSubmit={(e) => {
