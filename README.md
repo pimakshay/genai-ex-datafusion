@@ -8,6 +8,8 @@
     <!-- <br /> -->
     <a href="https://data-fusion-umber.vercel.app/login">Website</a>
     ·
+    <a href="https://www.youtube.com/watch?v=wVSKIyeLDfk&t=20s">Demo</a>
+    .
     <a href="./docs">Docs</a>
   </p>
 </div>
